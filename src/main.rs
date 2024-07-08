@@ -43,12 +43,7 @@ impl Quadrotor {
         let acceleration = Vector3::new(0.0, 0.0, -self.gravity);
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
-
-        // Update orientation using exponential map
-        let half_dt = 0.5 * self.time_step;
-        let omega = self.angular_velocity * half_dt;
-        let delta_q = UnitQuaternion::new(omega);
-        self.orientation = self.orientation * delta_q;
+        self.orientation *= UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
 
     pub fn update_dynamics_with_controls(
@@ -275,6 +270,7 @@ fn log_data(
         ),
     )
     .unwrap();
+    let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
 
     for (name, value) in [
         ("position/x", quad.position.x),
@@ -286,6 +282,9 @@ fn log_data(
         ("accel/x", measured_accel.x),
         ("accel/y", measured_accel.y),
         ("accel/z", measured_accel.z),
+        ("orientation/roll", quad_roll),
+        ("orientation/pitch", quad_pitch),
+        ("orientation/yaw", quad_yaw),
         ("gyro/x", measured_gyro.x),
         ("gyro/y", measured_gyro.y),
         ("gyro/z", measured_gyro.z),
