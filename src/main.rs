@@ -138,22 +138,23 @@ impl IMU {
         true_acceleration: Vector3<f32>,
         true_angular_velocity: Vector3<f32>,
     ) -> (Vector3<f32>, Vector3<f32>) {
+        let mut rng = rand::thread_rng();
         let accel_noise = Normal::new(0.0, self.accel_noise_std).unwrap();
         let gyro_noise = Normal::new(0.0, self.gyro_noise_std).unwrap();
 
         let measured_acceleration = true_acceleration
             + self.accel_bias
             + Vector3::new(
-                accel_noise.sample(&mut rand::thread_rng()),
-                accel_noise.sample(&mut rand::thread_rng()),
-                accel_noise.sample(&mut rand::thread_rng()),
+                accel_noise.sample(&mut rng),
+                accel_noise.sample(&mut rng),
+                accel_noise.sample(&mut rng),
             );
         let measured_angular_velocity = true_angular_velocity
             + self.gyro_bias
             + Vector3::new(
-                gyro_noise.sample(&mut rand::thread_rng()),
-                gyro_noise.sample(&mut rand::thread_rng()),
-                gyro_noise.sample(&mut rand::thread_rng()),
+                gyro_noise.sample(&mut rng),
+                gyro_noise.sample(&mut rng),
+                gyro_noise.sample(&mut rng),
             );
         (measured_acceleration, measured_angular_velocity)
     }
@@ -249,33 +250,67 @@ impl Controller {
         (thrust, desired_orientation)
     }
 }
+fn log_data(
+    rec: &rerun::RecordingStream,
+    quad: &Quadrotor,
+    desired_position: &Vector3<f32>,
+    measured_accel: &Vector3<f32>,
+    measured_gyro: &Vector3<f32>,
+) {
+    rec.log(
+        "desired_position",
+        &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)]),
+    )
+    .unwrap();
+    rec.log(
+        "quadrotor",
+        &rerun::Transform3D::from_translation_rotation(
+            rerun::Vec3D::new(quad.position.x, quad.position.y, quad.position.z),
+            rerun::Quaternion::from_xyzw([
+                quad.orientation.i,
+                quad.orientation.j,
+                quad.orientation.k,
+                quad.orientation.w,
+            ]),
+        ),
+    )
+    .unwrap();
 
+    for (name, value) in [
+        ("position/x", quad.position.x),
+        ("position/y", quad.position.y),
+        ("position/z", quad.position.z),
+        ("velocity/x", quad.velocity.x),
+        ("velocity/y", quad.velocity.y),
+        ("velocity/z", quad.velocity.z),
+        ("accel/x", measured_accel.x),
+        ("accel/y", measured_accel.y),
+        ("accel/z", measured_accel.z),
+        ("gyro/x", measured_gyro.x),
+        ("gyro/y", measured_gyro.y),
+        ("gyro/z", measured_gyro.z),
+    ] {
+        rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
+    }
+}
 fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = Controller::new();
     let mut imu = IMU::new();
-    let mut desired_position;
-
     let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
         .connect()
         .unwrap();
-
     let mut i = 0;
     loop {
         rec.set_time_seconds("timestamp", quad.time_step * i as f32);
-        if i < 500 {
-            desired_position = Vector3::new(0.0, 0.0, 1.0);
-        } else if i >= 500 && i < 1000 {
-            desired_position = Vector3::new(1.0, 0.0, 1.0);
-        } else if i >= 1000 && i < 1500 {
-            desired_position = Vector3::new(1.0, 1.0, 1.0);
-        } else if i >= 1500 && i < 2000 {
-            desired_position = Vector3::new(0.0, 1.0, 1.0);
-        } else if i >= 2000 && i < 2500 {
-            desired_position = Vector3::new(0.0, 0.0, 1.0);
-        } else {
-            desired_position = Vector3::new(0.0, 0.0, 0.0);
-        }
+        let desired_position = match i {
+            0..=499 => Vector3::new(0.0, 0.0, 1.0),
+            500..=999 => Vector3::new(1.0, 0.0, 1.0),
+            1000..=1499 => Vector3::new(1.0, 1.0, 1.0),
+            1500..=1999 => Vector3::new(0.0, 1.0, 1.0),
+            2000..=2499 => Vector3::new(0.0, 0.0, 1.0),
+            _ => Vector3::new(0.0, 0.0, 0.0),
+        };
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             quad.position,
@@ -296,51 +331,13 @@ fn main() {
         imu.update(quad.time_step);
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
-
-        // Log desired position
-        rec.log(
-            "desired_position",
-            &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)]),
-        )
-        .unwrap();
-        rec.log(
-            "quadrotor",
-            &rerun::Transform3D::from_translation_rotation(
-                rerun::Vec3D::new(quad.position.x, quad.position.y, quad.position.z),
-                rerun::Quaternion::from_xyzw([
-                    quad.orientation.coords[0],
-                    quad.orientation.coords[1],
-                    quad.orientation.coords[2],
-                    quad.orientation.coords[3],
-                ]),
-            ),
-        )
-        .unwrap();
-        rec.log("position/x", &rerun::Scalar::new(quad.position.x as f64))
-            .unwrap();
-        rec.log("position/y", &rerun::Scalar::new(quad.position.y as f64))
-            .unwrap();
-        rec.log("position/z", &rerun::Scalar::new(quad.position.z as f64))
-            .unwrap();
-        rec.log("velocity/x", &rerun::Scalar::new(quad.velocity.x as f64))
-            .unwrap();
-        rec.log("velocity/y", &rerun::Scalar::new(quad.velocity.y as f64))
-            .unwrap();
-        rec.log("velocity/z", &rerun::Scalar::new(quad.velocity.z as f64))
-            .unwrap();
-        // rec log imu measured accel and gyro
-        rec.log("accel/x", &rerun::Scalar::new(_measured_accel.x as f64))
-            .unwrap();
-        rec.log("accel/y", &rerun::Scalar::new(_measured_accel.y as f64))
-            .unwrap();
-        rec.log("accel/z", &rerun::Scalar::new(_measured_accel.z as f64))
-            .unwrap();
-        rec.log("gyro/x", &rerun::Scalar::new(_measured_gyro.x as f64))
-            .unwrap();
-        rec.log("gyro/y", &rerun::Scalar::new(_measured_gyro.y as f64))
-            .unwrap();
-        rec.log("gyro/z", &rerun::Scalar::new(_measured_gyro.z as f64))
-            .unwrap();
+        log_data(
+            &rec,
+            &quad,
+            &desired_position,
+            &_measured_accel,
+            &_measured_gyro,
+        );
         i += 1;
         // Break the loop after a certain number of iterations
         if i >= 3000 {
