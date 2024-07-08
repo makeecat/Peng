@@ -1,20 +1,24 @@
 extern crate nalgebra as na;
 extern crate rand;
 
-use na::{Vector3, Quaternion, UnitQuaternion, Matrix3, Rotation3};
+use na::{Vector3, UnitQuaternion, Matrix3, Rotation3};
 use rand_distr::{Distribution, Normal};
+use kiss3d::window::Window;
+use kiss3d::light::Light;
+use kiss3d::scene::SceneNode;
+use kiss3d::nalgebra::{Translation3, UnitQuaternion as Kiss3dUnitQuaternion};
 
 struct Quadrotor {
-    position: Vector3<f64>,
-    velocity: Vector3<f64>,
-    orientation: UnitQuaternion<f64>,
-    angular_velocity: Vector3<f64>,
-    mass: f64,
-    gravity: f64,
-    time_step: f64,
-    thrust_coefficient: f64,
-    drag_coefficient: f64,
-    inertia_matrix: Matrix3<f64>,
+    position: Vector3<f32>,
+    velocity: Vector3<f32>,
+    orientation: UnitQuaternion<f32>,
+    angular_velocity: Vector3<f32>,
+    mass: f32,
+    gravity: f32,
+    time_step: f32,
+    thrust_coefficient: f32,
+    drag_coefficient: f32,
+    inertia_matrix: Matrix3<f32>,
 }
 
 impl Quadrotor {
@@ -28,7 +32,7 @@ impl Quadrotor {
             gravity: 9.81,
             time_step: 0.01,
             thrust_coefficient: 0.0,
-            drag_coefficient: 0.010,
+            drag_coefficient: 0.000,
             inertia_matrix: Matrix3::new(0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995),
         }
     }
@@ -46,7 +50,7 @@ impl Quadrotor {
         self.orientation = self.orientation * delta_q;
     }
 
-    pub fn update_dynamics_with_controls(&mut self, control_thrust: Vector3<f64>, control_torque: Vector3<f64>) {
+    pub fn update_dynamics_with_controls(&mut self, control_thrust: Vector3<f32>, control_torque: Vector3<f32>) {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * self.velocity.norm() * self.velocity;
         let thrust_body = Vector3::new(0.0, 0.0, control_thrust.norm());
@@ -66,7 +70,7 @@ impl Quadrotor {
         self.orientation *= UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
 
-    pub fn read_imu(&self) -> (Vector3<f64>, Vector3<f64>) {
+    pub fn read_imu(&self) -> (Vector3<f32>, Vector3<f32>) {
         let accel_noise = Normal::new(0.0, 0.02).unwrap();
         let gyro_noise = Normal::new(0.0, 0.01).unwrap();
 
@@ -91,11 +95,11 @@ impl Quadrotor {
 }
 
 struct IMU {
-    accel_bias: Vector3<f64>,
-    gyro_bias: Vector3<f64>,
-    accel_noise_std: f64,
-    gyro_noise_std: f64,
-    bias_instability: f64,
+    accel_bias: Vector3<f32>,
+    gyro_bias: Vector3<f32>,
+    accel_noise_std: f32,
+    gyro_noise_std: f32,
+    bias_instability: f32,
 }
 
 impl IMU {
@@ -109,7 +113,7 @@ impl IMU {
         }
     }
 
-    pub fn update(&mut self, dt: f64) {
+    pub fn update(&mut self, dt: f32) {
         let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt()).unwrap();
         self.accel_bias += Vector3::new(
             bias_drift.sample(&mut rand::thread_rng()),
@@ -123,7 +127,7 @@ impl IMU {
         );
     }
 
-    pub fn read(&self, true_acceleration: Vector3<f64>, true_angular_velocity: Vector3<f64>) -> (Vector3<f64>, Vector3<f64>) {
+    pub fn read(&self, true_acceleration: Vector3<f32>, true_angular_velocity: Vector3<f32>) -> (Vector3<f32>, Vector3<f32>) {
         let accel_noise = Normal::new(0.0, self.accel_noise_std).unwrap();
         let gyro_noise = Normal::new(0.0, self.gyro_noise_std).unwrap();
 
@@ -144,16 +148,16 @@ impl IMU {
 }
 
 struct Controller {
-    kp_pos: Vector3<f64>,
-    kd_pos: Vector3<f64>,
-    kp_att: Vector3<f64>,
-    kd_att: Vector3<f64>,
-    ki_pos: Vector3<f64>,
-    ki_att: Vector3<f64>,
-    integral_pos_error: Vector3<f64>,
-    integral_att_error: Vector3<f64>,
-    max_integral_pos: Vector3<f64>,
-    max_integral_att: Vector3<f64>,
+    kp_pos: Vector3<f32>,
+    kd_pos: Vector3<f32>,
+    kp_att: Vector3<f32>,
+    kd_att: Vector3<f32>,
+    ki_pos: Vector3<f32>,
+    ki_att: Vector3<f32>,
+    integral_pos_error: Vector3<f32>,
+    integral_att_error: Vector3<f32>,
+    max_integral_pos: Vector3<f32>,
+    max_integral_att: Vector3<f32>,
 }
 
 impl Controller {
@@ -172,7 +176,7 @@ impl Controller {
         }
     }
 
-    fn compute_attitude_control(&mut self, desired_orientation: UnitQuaternion<f64>, current_orientation: UnitQuaternion<f64>, current_angular_velocity: Vector3<f64>, dt: f64) -> Vector3<f64> {
+    fn compute_attitude_control(&mut self, desired_orientation: UnitQuaternion<f32>, current_orientation: UnitQuaternion<f32>, current_angular_velocity: Vector3<f32>, dt: f32) -> Vector3<f32> {
         let error_orientation = current_orientation.inverse() * desired_orientation;
         let (roll_error, pitch_error, yaw_error) = error_orientation.euler_angles();
         let error_angles = Vector3::new(roll_error, pitch_error, yaw_error);
@@ -185,7 +189,7 @@ impl Controller {
         self.kd_att.component_mul(&error_angular_velocity) + 
         self.ki_att.component_mul(&self.integral_att_error)
     }
-    fn compute_position_control(&mut self, desired_position: Vector3<f64>, current_position: Vector3<f64>, current_velocity: Vector3<f64>, current_orientation: UnitQuaternion<f64>, dt: f64, mass: f64, gravity: f64) -> (Vector3<f64>, UnitQuaternion<f64>) {
+    fn compute_position_control(&mut self, desired_position: Vector3<f32>, current_position: Vector3<f32>, current_velocity: Vector3<f32>, current_orientation: UnitQuaternion<f32>, dt: f32, mass: f32, gravity: f32) -> (Vector3<f32>, UnitQuaternion<f32>) {
         let error_position = desired_position - current_position;
         let error_velocity = -current_velocity;
         
@@ -214,13 +218,81 @@ impl Controller {
     }
 }
 
+struct Visualizer {
+    window: Window,
+    quadrotor: SceneNode,
+    desired_position: SceneNode,
+}
+
+impl Visualizer {
+    fn new() -> Self {
+        let mut window = Window::new("Quadrotor Simulation");
+        window.set_light(Light::StickToCamera);
+        let mut quadrotor = window.add_group();
+
+        let mut quadrotor_body = quadrotor.add_cube(0.2, 0.2, 0.05);
+        let mut quadrotor_z_vec = quadrotor.add_cube(0.05, 0.05, 5.0);
+        let mut quadrotor_x_vec = quadrotor.add_cube(5.0, 0.05, 0.05);
+        let mut quadrotor_y_vec = quadrotor.add_cube(0.05, 5.0, 0.05);
+        quadrotor_body.set_color(0.0, 0.0, 0.0);
+        quadrotor_x_vec.set_color(1.0, 0.0, 0.0);
+        quadrotor_y_vec.set_color(0.0, 1.0, 0.0);
+        quadrotor_z_vec.set_color(0.0, 0.0, 1.0);
+        quadrotor_x_vec.set_local_translation(Translation3::new(2.5, 0.0, 0.0).into());
+        quadrotor_y_vec.set_local_translation(Translation3::new(0.0, 2.5, 0.0).into());
+        quadrotor_z_vec.set_local_translation(Translation3::new(0.0, 0.0, 2.5).into());
+
+        let mut desired_position = window.add_sphere(0.1);
+        desired_position.set_color(0.0, 1.0, 0.0);
+
+        let linewidth = 0.04;
+        let linelength = 2000.0;
+
+        // Floor
+        for x_pos in -100..100 {
+            let mut cube = window.add_cube(linewidth, linelength, linewidth);
+            cube.set_color(0.5, 1.0, 0.5);
+            cube.set_local_translation(Translation3::new(5.0 * x_pos as f32, 0.0, 0.0));
+        }
+        for x_pos in -100..100 {
+            let mut cube = window.add_cube(linelength, linewidth, linewidth);
+            cube.set_color(0.5, 1.0, 0.5);
+            cube.set_local_translation(Translation3::new(0.0, 5.0 * x_pos as f32, 0.0));
+        }
+
+        Self {
+            window,
+            quadrotor,
+            desired_position,
+        }
+    }
+
+    fn update(&mut self, quad_position: Vector3<f32>, quad_orientation: UnitQuaternion<f32>, desired_position: Vector3<f32>) {
+        let quadrotor_translation = Translation3::new(quad_position.x, quad_position.y, quad_position.z).into();
+        let (quadrotor_roll, quadrotor_pitch, quadrotor_yaw) = quad_orientation.euler_angles();
+        let quadrotor_rotation = Kiss3dUnitQuaternion::from_euler_angles(quadrotor_roll, quadrotor_pitch, quadrotor_yaw);
+        self.quadrotor.set_local_translation(quadrotor_translation);
+        self.quadrotor.set_local_rotation(quadrotor_rotation);
+
+        self.desired_position.set_local_translation(Translation3::new(desired_position.x, desired_position.y, desired_position.z));
+
+    }
+
+
+    fn render(&mut self) -> bool {
+        self.window.render()
+    }
+}
+
 fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = Controller::new();
     let mut imu = IMU::new();
     let desired_position = Vector3::new(0.1, 0.5, 1.0);
+    let mut visualizer = Visualizer::new();
 
-    for i in 0..1000000 {
+    let mut i = 0;
+    while visualizer.render() {
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             quad.position,
@@ -243,9 +315,12 @@ fn main() {
         let (true_accel, true_gyro) = quad.read_imu();
         let (measured_accel, measured_gyro) = imu.read(true_accel, true_gyro);
 
+        visualizer.update(quad.position, quad.orientation, desired_position);
+
         if i % 100 == 0 {
             println!("Position: {:?}, Orientation: {:?}", quad.position, quad.orientation);
             println!("IMU Acceleration: {:?}, Gyro: {:?}", measured_accel, measured_gyro);
         }
+        i += 1;
     }
 }
