@@ -53,12 +53,12 @@ impl Quadrotor {
 
     pub fn update_dynamics_with_controls(
         &mut self,
-        control_thrust: Vector3<f32>,
+        control_thrust: f32,
         control_torque: Vector3<f32>,
     ) {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * self.velocity.norm() * self.velocity;
-        let thrust_body = Vector3::new(0.0, 0.0, control_thrust.norm());
+        let thrust_body = Vector3::new(0.0, 0.0, control_thrust);
         let thrust_world = self.orientation * thrust_body;
         let total_force = thrust_world + gravity_force + drag_force;
 
@@ -219,7 +219,7 @@ impl Controller {
         dt: f32,
         mass: f32,
         gravity: f32,
-    ) -> (Vector3<f32>, UnitQuaternion<f32>) {
+    ) -> (f32, UnitQuaternion<f32>) {
         let error_position = desired_position - current_position;
         let error_velocity = -current_velocity;
 
@@ -240,15 +240,13 @@ impl Controller {
             let y_body = current_orientation.transform_vector(&Vector3::new(0.0, 1.0, 0.0));
             let x_body = y_body.cross(&z_body).normalize();
             let y_body = z_body.cross(&x_body);
-
             UnitQuaternion::from_rotation_matrix(&Rotation3::from_matrix_unchecked(
                 Matrix3::from_columns(&[x_body, y_body, z_body]),
             ))
         } else {
             current_orientation
         };
-
-        (Vector3::new(0.0, 0.0, thrust), desired_orientation)
+        (thrust, desired_orientation)
     }
 }
 
