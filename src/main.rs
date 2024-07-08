@@ -16,13 +16,15 @@ struct Quadrotor {
     mass: f32,
     gravity: f32,
     time_step: f32,
-    thrust_coefficient: f32,
+    // thrust_coefficient: f32,
     drag_coefficient: f32,
     inertia_matrix: Matrix3<f32>,
+    inertia_matrix_inv: Matrix3<f32>,
 }
 
 impl Quadrotor {
     pub fn new() -> Self {
+        let inertia_matrix = Matrix3::new(0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995);
         Self {
             position: Vector3::zeros(),
             velocity: Vector3::zeros(),
@@ -31,12 +33,13 @@ impl Quadrotor {
             mass: 1.3,
             gravity: 9.81,
             time_step: 0.01,
-            thrust_coefficient: 0.0,
+            // thrust_coefficient: 0.0,
             drag_coefficient: 0.000,
-            inertia_matrix: Matrix3::new(0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995),
+            inertia_matrix,
+            inertia_matrix_inv: inertia_matrix.try_inverse().unwrap(),
         }
     }
-
+    #[allow(dead_code)]
     pub fn update_dynamics(&mut self) {
         // Update position and velocity based on current state and simple physics
         let acceleration = Vector3::new(0.0, 0.0, -self.gravity);
@@ -61,7 +64,7 @@ impl Quadrotor {
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
 
-        let inertia_inv = self.inertia_matrix.try_inverse().unwrap();
+        let inertia_inv = self.inertia_matrix_inv;
         let inertia_angular_velocity = self.inertia_matrix * self.angular_velocity;
         let gyroscopic_torque = self.angular_velocity.cross(&inertia_angular_velocity);
         let angular_acceleration = inertia_inv * (control_torque - gyroscopic_torque);
@@ -273,11 +276,8 @@ impl Visualizer {
         let quadrotor_rotation = Kiss3dUnitQuaternion::from_euler_angles(quadrotor_roll, quadrotor_pitch, quadrotor_yaw);
         self.quadrotor.set_local_translation(quadrotor_translation);
         self.quadrotor.set_local_rotation(quadrotor_rotation);
-
         self.desired_position.set_local_translation(Translation3::new(desired_position.x, desired_position.y, desired_position.z));
-
     }
-
 
     fn render(&mut self) -> bool {
         self.window.render()
