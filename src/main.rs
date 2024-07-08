@@ -4,11 +4,6 @@ extern crate rerun;
 
 use na::{Matrix3, Rotation3, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
-use rerun::{
-    components::{Position3D, Rotation3D, Transform3D},
-    transform::TranslationRotationScale3D,
-};
-
 struct Quadrotor {
     position: Vector3<f32>,
     velocity: Vector3<f32>,
@@ -95,14 +90,12 @@ impl Quadrotor {
                 accel_noise.sample(&mut rand::thread_rng()),
                 accel_noise.sample(&mut rand::thread_rng()),
             );
-
         let measured_angular_velocity = self.angular_velocity
             + Vector3::new(
                 gyro_noise.sample(&mut rand::thread_rng()),
                 gyro_noise.sample(&mut rand::thread_rng()),
                 gyro_noise.sample(&mut rand::thread_rng()),
             );
-
         (measured_acceleration, measured_angular_velocity)
     }
 }
@@ -155,7 +148,6 @@ impl IMU {
                 accel_noise.sample(&mut rand::thread_rng()),
                 accel_noise.sample(&mut rand::thread_rng()),
             );
-
         let measured_angular_velocity = true_angular_velocity
             + self.gyro_bias
             + Vector3::new(
@@ -163,7 +155,6 @@ impl IMU {
                 gyro_noise.sample(&mut rand::thread_rng()),
                 gyro_noise.sample(&mut rand::thread_rng()),
             );
-
         (measured_acceleration, measured_angular_velocity)
     }
 }
@@ -265,7 +256,7 @@ fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = Controller::new();
     let mut imu = IMU::new();
-    let desired_position = Vector3::new(0.1, 0.5, 1.0);
+    let mut desired_position;
 
     let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
         .connect()
@@ -274,6 +265,19 @@ fn main() {
     let mut i = 0;
     loop {
         rec.set_time_seconds("timestamp", quad.time_step * i as f32);
+        if i < 500 {
+            desired_position = Vector3::new(0.0, 0.0, 1.0);
+        } else if i >= 500 && i < 1000 {
+            desired_position = Vector3::new(1.0, 0.0, 1.0);
+        } else if i >= 1000 && i < 1500 {
+            desired_position = Vector3::new(1.0, 1.0, 1.0);
+        } else if i >= 1500 && i < 2000 {
+            desired_position = Vector3::new(0.0, 1.0, 1.0);
+        } else if i >= 2000 && i < 2500 {
+            desired_position = Vector3::new(0.0, 0.0, 1.0);
+        } else {
+            desired_position = Vector3::new(0.0, 0.0, 0.0);
+        }
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             quad.position,
@@ -292,9 +296,8 @@ fn main() {
 
         quad.update_dynamics_with_controls(thrust, torque);
         imu.update(quad.time_step);
-
         let (true_accel, true_gyro) = quad.read_imu();
-        let (measured_accel, measured_gyro) = imu.read(true_accel, true_gyro);
+        let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
 
         // Log desired position
         rec.log(
@@ -315,29 +318,6 @@ fn main() {
             ),
         )
         .unwrap();
-
-        // Plot IMU acceleration, gyro and position in 2D plot with Rerun
-        rec.log(
-            "imu/acceleration/x",
-            &rerun::Scalar::new(measured_accel[0] as f64),
-        )
-        .unwrap();
-        rec.log(
-            "imu/acceleration/y",
-            &rerun::Scalar::new(measured_accel[1] as f64),
-        )
-        .unwrap();
-        rec.log(
-            "imu/acceleration/z",
-            &rerun::Scalar::new(measured_accel[2] as f64),
-        )
-        .unwrap();
-        rec.log("imu/gyro/x", &rerun::Scalar::new(measured_gyro[0] as f64))
-            .unwrap();
-        rec.log("imu/gyro/y", &rerun::Scalar::new(measured_gyro[1] as f64))
-            .unwrap();
-        rec.log("imu/gyro/z", &rerun::Scalar::new(measured_gyro[2] as f64))
-            .unwrap();
         rec.log("position/x", &rerun::Scalar::new(quad.position.x as f64))
             .unwrap();
         rec.log("position/y", &rerun::Scalar::new(quad.position.y as f64))
@@ -350,21 +330,22 @@ fn main() {
             .unwrap();
         rec.log("velocity/z", &rerun::Scalar::new(quad.velocity.z as f64))
             .unwrap();
-
-        if i % 100 == 0 {
-            println!(
-                "Position: {:?}, Orientation: {:?}",
-                quad.position, quad.orientation
-            );
-            println!(
-                "IMU Acceleration: {:?}, Gyro: {:?}",
-                measured_accel, measured_gyro
-            );
-        }
+        // rec log imu measured accel and gyro
+        rec.log("accel/x", &rerun::Scalar::new(_measured_accel.x as f64))
+            .unwrap();
+        rec.log("accel/y", &rerun::Scalar::new(_measured_accel.y as f64))
+            .unwrap();
+        rec.log("accel/z", &rerun::Scalar::new(_measured_accel.z as f64))
+            .unwrap();
+        rec.log("gyro/x", &rerun::Scalar::new(_measured_gyro.x as f64))
+            .unwrap();
+        rec.log("gyro/y", &rerun::Scalar::new(_measured_gyro.y as f64))
+            .unwrap();
+        rec.log("gyro/z", &rerun::Scalar::new(_measured_gyro.z as f64))
+            .unwrap();
         i += 1;
-
         // Break the loop after a certain number of iterations
-        if i >= 500 {
+        if i >= 3000 {
             break;
         }
     }
