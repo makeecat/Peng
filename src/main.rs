@@ -156,7 +156,7 @@ impl IMU {
     }
 }
 
-struct Controller {
+struct PIDController {
     kp_pos: Vector3<f32>,
     kd_pos: Vector3<f32>,
     kp_att: Vector3<f32>,
@@ -169,7 +169,7 @@ struct Controller {
     max_integral_att: Vector3<f32>,
 }
 
-impl Controller {
+impl PIDController {
     fn new() -> Self {
         Self {
             kp_pos: Vector3::new(7.1, 7.1, 11.9),
@@ -310,7 +310,7 @@ fn log_data(
 }
 fn main() {
     let mut quad = Quadrotor::new();
-    let mut controller = Controller::new();
+    let mut controller = PIDController::new();
     let mut imu = IMU::new();
     let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
         .connect()
