@@ -43,7 +43,8 @@ impl Quadrotor {
         let acceleration = Vector3::new(0.0, 0.0, -self.gravity);
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
-        self.orientation *= UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
+        self.orientation *=
+            UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
 
     pub fn update_dynamics_with_controls(
@@ -199,6 +200,12 @@ impl Controller {
         self.integral_att_error = self
             .integral_att_error
             .component_mul(&self.max_integral_att.map(|x| x.signum()));
+        for i in 0..3 {
+            if self.integral_att_error[i].abs() > self.max_integral_att[i] {
+                self.integral_att_error[i] =
+                    self.integral_att_error[i].signum() * self.max_integral_att[i];
+            }
+        }
         let error_angular_velocity = -current_angular_velocity;
 
         self.kp_att.component_mul(&error_angles)
@@ -209,20 +216,28 @@ impl Controller {
     fn compute_position_control(
         &mut self,
         desired_position: Vector3<f32>,
+        desired_velocity: Vector3<f32>,
+        desired_yaw: f32,
         current_position: Vector3<f32>,
         current_velocity: Vector3<f32>,
-        current_orientation: UnitQuaternion<f32>,
         dt: f32,
         mass: f32,
         gravity: f32,
     ) -> (f32, UnitQuaternion<f32>) {
         let error_position = desired_position - current_position;
-        let error_velocity = -current_velocity;
+        let error_velocity = desired_velocity - current_velocity;
 
         self.integral_pos_error += error_position * dt;
         self.integral_pos_error = self
             .integral_pos_error
             .component_mul(&self.max_integral_pos.map(|x| x.signum()));
+        for i in 0..3 {
+            if self.integral_pos_error[i] > self.max_integral_pos[i] {
+                self.integral_pos_error[i] = self.max_integral_pos[i];
+            } else if self.integral_pos_error[i] < -self.max_integral_pos[i] {
+                self.integral_pos_error[i] = -self.max_integral_pos[i];
+            }
+        }
         let acceleration = self.kp_pos.component_mul(&error_position)
             + self.kd_pos.component_mul(&error_velocity)
             + self.ki_pos.component_mul(&self.integral_pos_error);
@@ -233,14 +248,15 @@ impl Controller {
         let thrust = mass * total_acceleration.norm();
         let desired_orientation = if total_acceleration.norm() > 1e-6 {
             let z_body = total_acceleration.normalize();
-            let y_body = current_orientation.transform_vector(&Vector3::new(0.0, 1.0, 0.0));
-            let x_body = y_body.cross(&z_body).normalize();
-            let y_body = z_body.cross(&x_body);
+            let yaw_rotation = UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw);
+            let x_body_horizontal = yaw_rotation * Vector3::new(1.0, 0.0, 0.0);
+            let y_body = z_body.cross(&x_body_horizontal).normalize();
+            let x_body = y_body.cross(&z_body);
             UnitQuaternion::from_rotation_matrix(&Rotation3::from_matrix_unchecked(
                 Matrix3::from_columns(&[x_body, y_body, z_body]),
             ))
         } else {
-            current_orientation
+            UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw)
         };
         (thrust, desired_orientation)
     }
@@ -307,14 +323,24 @@ fn main() {
             500..=999 => Vector3::new(1.0, 0.0, 1.0),
             1000..=1499 => Vector3::new(1.0, 1.0, 1.0),
             1500..=1999 => Vector3::new(0.0, 1.0, 1.0),
-            2000..=2499 => Vector3::new(0.0, 0.0, 1.0),
+            2000..=2499 => Vector3::new(0.0, 0.0, 0.5),
             _ => Vector3::new(0.0, 0.0, 0.0),
+        };
+        let desired_velocity = Vector3::new(0.0, 0.0, 0.0);
+        let desired_yaw = match i {
+            0..=499 => 0.0,
+            500..=999 => 0.0,
+            1000..=1499 => std::f32::consts::PI / 2.0,
+            1500..=1999 => std::f32::consts::PI / 2.0,
+            2000..=2499 => 0.0,
+            _ => 0.0,
         };
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
+            desired_velocity,
+            desired_yaw,
             quad.position,
             quad.velocity,
-            quad.orientation,
             quad.time_step,
             quad.mass,
             quad.gravity,
