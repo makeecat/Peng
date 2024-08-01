@@ -19,7 +19,8 @@ jobs:
     - name: Prepare docs for deployment
       run: |
         mkdir gh-pages
-        mv target/doc/Peng/* gh-pages/
+        echo "<meta http-equiv=\"refresh\" content=\"0; url=Peng\index.html\">" > target/doc/index.html
+        mv target/doc/* gh-pages/
         touch gh-pages/.nojekyll
     - name: Deploy Docs
       uses: peaceiris/actions-gh-pages@v3
