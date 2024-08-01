@@ -1,8 +1,4 @@
-extern crate nalgebra as na;
-extern crate rand;
-extern crate rerun;
-
-use na::{Matrix3, Rotation3, UnitQuaternion, Vector3};
+use nalgebra::{Matrix3, Rotation3, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 struct Quadrotor {
     position: Vector3<f32>,
@@ -95,7 +91,7 @@ impl Quadrotor {
     }
 }
 
-struct IMU {
+struct Imu {
     accel_bias: Vector3<f32>,
     gyro_bias: Vector3<f32>,
     accel_noise_std: f32,
@@ -103,7 +99,7 @@ struct IMU {
     bias_instability: f32,
 }
 
-impl IMU {
+impl Imu {
     pub fn new() -> Self {
         Self {
             accel_bias: Vector3::zeros(),
@@ -650,7 +646,7 @@ fn log_data(
 fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = PIDController::new();
-    let mut imu = IMU::new();
+    let mut imu = Imu::new();
     let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
         .connect()
         .unwrap();
