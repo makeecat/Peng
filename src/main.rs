@@ -116,16 +116,10 @@ impl IMU {
 
     pub fn update(&mut self, dt: f32) {
         let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt()).unwrap();
-        self.accel_bias += Vector3::new(
-            bias_drift.sample(&mut rand::thread_rng()),
-            bias_drift.sample(&mut rand::thread_rng()),
-            bias_drift.sample(&mut rand::thread_rng()),
-        );
-        self.gyro_bias += Vector3::new(
-            bias_drift.sample(&mut rand::thread_rng()),
-            bias_drift.sample(&mut rand::thread_rng()),
-            bias_drift.sample(&mut rand::thread_rng()),
-        );
+        let drift_vector =
+            || Vector3::from_iterator((0..3).map(|_| bias_drift.sample(&mut rand::thread_rng())));
+        self.accel_bias += drift_vector();
+        self.gyro_bias += drift_vector();
     }
 
     pub fn read(
@@ -198,12 +192,10 @@ impl PIDController {
         self.integral_att_error += error_angles * dt;
         self.integral_att_error
             .component_mul_assign(&self.max_integral_att.map(|x| x.signum()));
-        for i in 0..3 {
-            if self.integral_att_error[i].abs() > self.max_integral_att[i] {
-                self.integral_att_error[i] =
-                    self.integral_att_error[i].signum() * self.max_integral_att[i];
-            }
-        }
+        self.integral_att_error = self
+            .integral_att_error
+            .zip_map(&self.max_integral_att, |int, max| int.clamp(-max, max));
+
         let error_angular_velocity = -current_angular_velocity;
 
         self.kp_att.component_mul(&error_angles)
