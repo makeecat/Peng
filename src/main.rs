@@ -416,6 +416,72 @@ impl Planner for LissajousPlanner {
         time >= self.start_time + self.duration
     }
 }
+struct CirclePlanner {
+    center: Vector3<f32>,
+    radius: f32,
+    angular_velocity: f32,
+    start_position: Vector3<f32>,
+    start_time: f32,
+    duration: f32,
+    start_yaw: f32,
+    end_yaw: f32,
+    ramp_time: f32,
+}
+
+impl Planner for CirclePlanner {
+    fn plan(
+        &self,
+        _current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let t = (time - self.start_time) / self.duration;
+        let t = t.clamp(0.0, 1.0);
+
+        // Smooth start function
+        let smooth_start = if t < self.ramp_time / self.duration {
+            let t_ramp = t / (self.ramp_time / self.duration);
+            t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
+        } else {
+            1.0
+        };
+
+        // Velocity ramp function
+        let velocity_ramp = if t < self.ramp_time / self.duration {
+            // Ramp up
+            smooth_start
+        } else if t > 1.0 - self.ramp_time / self.duration {
+            // Ramp down
+            let t_down = (1.0 - t) / (self.ramp_time / self.duration);
+            t_down * t_down * (3.0 - 2.0 * t_down)
+        } else {
+            // Full amplitude
+            1.0
+        };
+
+        let angle = self.angular_velocity * t * self.duration;
+        let circle_offset = Vector3::new(self.radius * angle.cos(), self.radius * angle.sin(), 0.0);
+
+        let position = self.start_position
+            + smooth_start * ((self.center + circle_offset) - self.start_position);
+
+        let tangential_velocity = Vector3::new(
+            -self.radius * self.angular_velocity * angle.sin(),
+            self.radius * self.angular_velocity * angle.cos(),
+            0.0,
+        );
+
+        let velocity = tangential_velocity * velocity_ramp;
+
+        let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
+
+        (position, velocity, yaw)
+    }
+
+    fn is_finished(&self, _current_position: Vector3<f32>, time: f32) -> bool {
+        time >= self.start_time + self.duration
+    }
+}
 struct PlannerManager {
     current_planner: Box<dyn Planner>,
 }
@@ -578,11 +644,28 @@ fn main() {
                 start_time: time,
                 duration: 20.0,
                 start_yaw: current_yaw,
-                end_yaw: current_yaw + 2.0 * std::f32::consts::PI, // Full 360-degree rotation
-                ramp_time: 5.0,                                    // 2 seconds ramp up and down
+                end_yaw: current_yaw + 2.0 * std::f32::consts::PI,
+                ramp_time: 5.0,
             });
             planner_manager.set_planner(new_planner);
         } else if i == 5200 {
+            let current_position = quad.position;
+            let current_yaw = quad.orientation.euler_angles().2;
+            let circle_center = Vector3::new(0.5, 0.5, 1.0);
+
+            let new_planner = Box::new(CirclePlanner {
+                center: circle_center,
+                radius: 0.5,
+                angular_velocity: 1.0,
+                start_position: current_position,
+                start_time: time,
+                duration: 8.0,
+                start_yaw: current_yaw,
+                end_yaw: current_yaw,
+                ramp_time: 2.0,
+            });
+            planner_manager.set_planner(new_planner);
+        } else if i == 6200 {
             let new_planner = Box::new(MinimumJerkLinePlanner {
                 start_position: quad.position,
                 end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
@@ -625,7 +708,7 @@ fn main() {
             &_measured_gyro,
         );
         i += 1;
-        if i >= 6000 {
+        if i >= 7000 {
             break;
         }
     }
