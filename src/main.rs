@@ -70,6 +70,7 @@ impl Quadrotor {
     pub fn read_imu(&self) -> (Vector3<f32>, Vector3<f32>) {
         let accel_noise = Normal::new(0.0, 0.02).unwrap();
         let gyro_noise = Normal::new(0.0, 0.01).unwrap();
+        let mut rng = rand::thread_rng();
 
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let specific_force =
@@ -77,15 +78,15 @@ impl Quadrotor {
 
         let measured_acceleration = specific_force
             + Vector3::new(
-                accel_noise.sample(&mut rand::thread_rng()),
-                accel_noise.sample(&mut rand::thread_rng()),
-                accel_noise.sample(&mut rand::thread_rng()),
+                accel_noise.sample(&mut rng),
+                accel_noise.sample(&mut rng),
+                accel_noise.sample(&mut rng),
             );
         let measured_angular_velocity = self.angular_velocity
             + Vector3::new(
-                gyro_noise.sample(&mut rand::thread_rng()),
-                gyro_noise.sample(&mut rand::thread_rng()),
-                gyro_noise.sample(&mut rand::thread_rng()),
+                gyro_noise.sample(&mut rng),
+                gyro_noise.sample(&mut rng),
+                gyro_noise.sample(&mut rng),
             );
         (measured_acceleration, measured_angular_velocity)
     }
@@ -217,13 +218,10 @@ impl PIDController {
         self.integral_pos_error = self
             .integral_pos_error
             .component_mul(&self.max_integral_pos.map(|x| x.signum()));
-        for i in 0..3 {
-            if self.integral_pos_error[i] > self.max_integral_pos[i] {
-                self.integral_pos_error[i] = self.max_integral_pos[i];
-            } else if self.integral_pos_error[i] < -self.max_integral_pos[i] {
-                self.integral_pos_error[i] = -self.max_integral_pos[i];
-            }
-        }
+        self.integral_pos_error = self
+            .integral_pos_error
+            .zip_map(&self.max_integral_pos, |int, max| int.clamp(-max, max));
+
         let acceleration = self.kp_pos.component_mul(&error_position)
             + self.kd_pos.component_mul(&error_velocity)
             + self.ki_pos.component_mul(&self.integral_pos_error);
