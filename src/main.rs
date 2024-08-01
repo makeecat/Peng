@@ -1,20 +1,76 @@
+//! # Quadrotor Simulation
+//!
+//! This crate provides a comprehensive simulation environment for quadrotor drones.
+//! It includes models for quadrotor dynamics, IMU simulation, various trajectory planners,
+//! and a PID controller for position and attitude control.
+//!
+//! ## Features
+//!
+//! - Realistic quadrotor dynamics simulation
+//! - IMU sensor simulation with configurable noise parameters
+//! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
+//! - PID controller for position and attitude control
+//! - Integration with the `rerun` crate for visualization
+//!
+//! ## Usage
+//!
+//! To use this crate in your project, add the following to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! quadrotor_sim = "0.1.0"
+//! ```
+//!
+//! Then, you can use the crate in your Rust code:
+//!
+//! ```rust
+//! use quadrotor_sim::{Quadrotor, PIDController, PlannerManager};
+//!
+//! fn main() {
+//!     let mut quad = Quadrotor::new();
+//!     let controller = PIDController::new();
+//!     let planner = PlannerManager::new(quad.position, 0.0);
+//!
+//!     // Simulation loop
+//!     // ...
+//! }
+//! ```
+//!
 use nalgebra::{Matrix3, Rotation3, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
+/// Represents a quadrotor with its physical properties and state
 struct Quadrotor {
+    /// Current position of the quadrotor in 3D space
     position: Vector3<f32>,
+    /// Current velocity of the quadrotor
     velocity: Vector3<f32>,
+    /// Current orientation of the quadrotor
     orientation: UnitQuaternion<f32>,
+    /// Current angular velocity of the quadrotor
     angular_velocity: Vector3<f32>,
+    /// Mass of the quadrotor in kg
     mass: f32,
+    /// Gravitational acceleration in m/s^2
     gravity: f32,
+    /// Simulation time step in seconds
     time_step: f32,
-    // thrust_coefficient: f32,
+    /// Drag coefficient
     drag_coefficient: f32,
+    /// Inertia matrix of the quadrotor
     inertia_matrix: Matrix3<f32>,
+    /// Inverse of the inertia matrix
     inertia_matrix_inv: Matrix3<f32>,
 }
 
 impl Quadrotor {
+    /// Creates a new Quadrotor with default parameters
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let quad = Quadrotor::new();
+    /// assert_eq!(quad.mass, 1.3);
+    /// ```
     pub fn new() -> Self {
         let inertia_matrix = Matrix3::new(
             0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995,
@@ -43,6 +99,21 @@ impl Quadrotor {
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
 
+    /// Updates the quadrotor's dynamics with control inputs
+    ///
+    /// # Arguments
+    ///
+    /// * `control_thrust` - The total thrust force applied to the quadrotor
+    /// * `control_torque` - The 3D torque vector applied to the quadrotor
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut quad = Quadrotor::new();
+    /// let thrust = 10.0;
+    /// let torque = Vector3::new(0.1, 0.1, 0.1);
+    /// quad.update_dynamics_with_controls(thrust, &torque);
+    /// ```
     pub fn update_dynamics_with_controls(
         &mut self,
         control_thrust: f32,
@@ -67,6 +138,11 @@ impl Quadrotor {
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
 
+    /// Simulates IMU readings with added noise
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the measured acceleration and angular velocity
     pub fn read_imu(&self) -> (Vector3<f32>, Vector3<f32>) {
         let accel_noise = Normal::new(0.0, 0.02).unwrap();
         let gyro_noise = Normal::new(0.0, 0.01).unwrap();
@@ -92,15 +168,28 @@ impl Quadrotor {
     }
 }
 
+/// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
 struct Imu {
+    /// Accelerometer bias
     accel_bias: Vector3<f32>,
+    /// Gyroscope bias
     gyro_bias: Vector3<f32>,
+    /// Standard deviation of accelerometer noise
     accel_noise_std: f32,
+    /// Standard deviation of gyroscope noise
     gyro_noise_std: f32,
+    /// Bias instability coefficient
     bias_instability: f32,
 }
 
 impl Imu {
+    /// Creates a new IMU with default parameters
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let imu = Imu::new();
+    /// assert_eq!(imu.accel_noise_std, 0.02);
     pub fn new() -> Self {
         Self {
             accel_bias: Vector3::zeros(),
@@ -111,6 +200,11 @@ impl Imu {
         }
     }
 
+    /// Updates the IMU biases over time
+    ///
+    /// # Arguments
+    ///
+    /// * `dt` - Time step for the update
     pub fn update(&mut self, dt: f32) {
         let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt()).unwrap();
         let drift_vector =
@@ -119,6 +213,16 @@ impl Imu {
         self.gyro_bias += drift_vector();
     }
 
+    /// Simulates IMU readings with added bias and noise
+    ///
+    /// # Arguments
+    ///
+    /// * `true_acceleration` - The true acceleration vector
+    /// * `true_angular_velocity` - The true angular velocity vector
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the measured acceleration and angular velocity
     pub fn read(
         &self,
         true_acceleration: Vector3<f32>,
@@ -146,20 +250,39 @@ impl Imu {
     }
 }
 
+/// PID controller for quadrotor position and attitude control
 struct PIDController {
+    /// Proportional gain for position control
     kp_pos: Vector3<f32>,
+    /// Derivative gain for position control
     kd_pos: Vector3<f32>,
+    /// Proportional gain for attitude control
     kp_att: Vector3<f32>,
+    /// Derivative gain for attitude control
     kd_att: Vector3<f32>,
+    /// Integral gain for position control
     ki_pos: Vector3<f32>,
+    /// Integral gain for attitude control
     ki_att: Vector3<f32>,
+    /// Accumulated integral error for position
     integral_pos_error: Vector3<f32>,
+    /// Accumulated integral error for attitude
     integral_att_error: Vector3<f32>,
+    /// Maximum allowed integral error for position
     max_integral_pos: Vector3<f32>,
+    /// Maximum allowed integral error for attitude
     max_integral_att: Vector3<f32>,
 }
 
 impl PIDController {
+    /// Creates a new PIDController with default gains
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let controller = PIDController::new();
+    /// assert_eq!(controller.kp_pos, Vector3::new(7.1, 7.1, 11.9));
+    /// ```
     fn new() -> Self {
         Self {
             kp_pos: Vector3::new(7.1, 7.1, 11.9),
@@ -175,6 +298,18 @@ impl PIDController {
         }
     }
 
+    /// Computes attitude control torques
+    ///
+    /// # Arguments
+    ///
+    /// * `desired_orientation` - The desired orientation quaternion
+    /// * `current_orientation` - The current orientation quaternion
+    /// * `current_angular_velocity` - The current angular velocity
+    /// * `dt` - Time step
+    ///
+    /// # Returns
+    ///
+    /// The computed control torque vector
     fn compute_attitude_control(
         &mut self,
         desired_orientation: &UnitQuaternion<f32>,
@@ -200,6 +335,22 @@ impl PIDController {
             + self.ki_att.component_mul(&self.integral_att_error)
     }
 
+    /// Computes position control thrust and desired orientation
+    ///
+    /// # Arguments
+    ///
+    /// * `desired_position` - The desired position
+    /// * `desired_velocity` - The desired velocity
+    /// * `desired_yaw` - The desired yaw angle
+    /// * `current_position` - The current position
+    /// * `current_velocity` - The current velocity
+    /// * `dt` - Time step
+    /// * `mass` - Mass of the quadrotor
+    /// * `gravity` - Gravitational acceleration
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the computed thrust and desired orientation quaternion
     fn compute_position_control(
         &mut self,
         desired_position: Vector3<f32>,
@@ -245,13 +396,29 @@ impl PIDController {
         (thrust, desired_orientation)
     }
 }
+/// Enum representing different types of trajectory planners
 enum PlannerType {
+    /// Hover at current position
     Hover(HoverPlanner),
+    /// Minimum jerk trajectory along a straight line
     MinimumJerkLine(MinimumJerkLinePlanner),
+    /// Lissajous curve trajectory
     Lissajous(LissajousPlanner),
+    /// Circular trajectory
     Circle(CirclePlanner),
 }
 impl PlannerType {
+    /// Plans the trajectory based on the current planner type
+    ///
+    /// # Arguments
+    ///
+    /// * `current_position` - The current position of the quadrotor
+    /// * `current_velocity` - The current velocity of the quadrotor
+    /// * `time` - The current simulation time
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the desired position, velocity, and yaw angle
     fn plan(
         &self,
         current_position: Vector3<f32>,
@@ -265,7 +432,16 @@ impl PlannerType {
             PlannerType::Circle(p) => p.plan(current_position, current_velocity, time),
         }
     }
-
+    /// Checks if the current trajectory is finished
+    ///
+    /// # Arguments
+    ///
+    /// * `current_position` - The current position of the quadrotor
+    /// * `time` - The current simulation time
+    ///
+    /// # Returns
+    ///
+    /// `true` if the trajectory is finished, `false` otherwise
     fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
         match self {
             PlannerType::Hover(p) => p.is_finished(current_position, time),
@@ -276,18 +452,43 @@ impl PlannerType {
     }
 }
 
+/// Trait defining the interface for trajectory planners
 trait Planner {
+    /// Plans the trajectory based on the current state and time
+    ///
+    /// # Arguments
+    ///
+    /// * `current_position` - The current position of the quadrotor
+    /// * `current_velocity` - The current velocity of the quadrotor
+    /// * `time` - The current simulation time
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the desired position, velocity, and yaw angle
     fn plan(
         &self,
         current_position: Vector3<f32>,
         current_velocity: Vector3<f32>,
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32);
+
+    /// Checks if the current trajectory is finished
+    ///
+    /// # Arguments
+    ///
+    /// * `current_position` - The current position of the quadrotor
+    /// * `time` - The current simulation time
+    ///
+    /// # Returns
+    ///
+    /// `true` if the trajectory is finished, `false` otherwise
     fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool;
 }
-
+/// Planner for hovering at a fixed position
 struct HoverPlanner {
+    /// Target position for hovering
     target_position: Vector3<f32>,
+    /// Target yaw angle for hovering
     target_yaw: f32,
 }
 
@@ -305,12 +506,19 @@ impl Planner for HoverPlanner {
         true // Hover planner is always "finished" as it's the default state
     }
 }
+/// Planner for minimum jerk trajectories along a straight line
 struct MinimumJerkLinePlanner {
+    /// Starting position of the trajectory
     start_position: Vector3<f32>,
+    /// Ending position of the trajectory
     end_position: Vector3<f32>,
+    /// Starting yaw angle
     start_yaw: f32,
+    /// Ending yaw angle
     end_yaw: f32,
+    /// Start time of the trajectory
     start_time: f32,
+    /// Duration of the trajectory
     duration: f32,
 }
 
@@ -339,16 +547,27 @@ impl Planner for MinimumJerkLinePlanner {
             && _time >= self.start_time + self.duration
     }
 }
+/// Planner for Lissajous curve trajectories
 struct LissajousPlanner {
+    /// Starting position of the trajectory
     start_position: Vector3<f32>,
+    /// Center of the Lissajous curve
     center: Vector3<f32>,
+    /// Amplitude of the Lissajous curve
     amplitude: Vector3<f32>,
+    /// Frequency of the Lissajous curve
     frequency: Vector3<f32>,
+    /// Phase of the Lissajous curve
     phase: Vector3<f32>,
+    /// Start time of the trajectory
     start_time: f32,
+    /// Duration of the trajectory
     duration: f32,
+    /// Starting yaw angle
     start_yaw: f32,
+    /// Ending yaw angle
     end_yaw: f32,
+    /// Ramp-up time for smooth transitions
     ramp_time: f32,
 }
 
@@ -424,15 +643,25 @@ impl Planner for LissajousPlanner {
         time >= self.start_time + self.duration
     }
 }
+/// Planner for circular trajectories
 struct CirclePlanner {
+    /// Center of the circular trajectory
     center: Vector3<f32>,
+    /// Radius of the circular trajectory
     radius: f32,
+    /// Angular velocity of the circular motion
     angular_velocity: f32,
+    /// Starting position of the trajectory
     start_position: Vector3<f32>,
+    /// Start time of the trajectory
     start_time: f32,
+    /// Duration of the trajectory
     duration: f32,
+    /// Starting yaw angle
     start_yaw: f32,
+    /// Ending yaw angle
     end_yaw: f32,
+    /// Ramp-up time for smooth transitions
     ramp_time: f32,
 }
 
@@ -483,11 +712,23 @@ impl Planner for CirclePlanner {
         time >= self.start_time + self.duration
     }
 }
+/// Manages different trajectory planners and switches between them
 struct PlannerManager {
+    /// The currently active planner
     current_planner: PlannerType,
 }
 
 impl PlannerManager {
+    /// Creates a new PlannerManager with an initial hover planner
+    ///
+    /// # Arguments
+    ///
+    /// * `initial_position` - The initial position for hovering
+    /// * `initial_yaw` - The initial yaw angle for hovering
+    ///
+    /// # Returns
+    ///
+    /// A new PlannerManager instance
     fn new(initial_position: Vector3<f32>, initial_yaw: f32) -> Self {
         let hover_planner = HoverPlanner {
             target_position: initial_position,
@@ -497,10 +738,26 @@ impl PlannerManager {
             current_planner: PlannerType::Hover(hover_planner),
         }
     }
-
+    /// Sets a new planner
+    ///
+    /// # Arguments
+    ///
+    /// * `new_planner` - The new planner to be set
     fn set_planner(&mut self, new_planner: PlannerType) {
         self.current_planner = new_planner;
     }
+    /// Updates the current planner and returns the desired position, velocity, and yaw
+    ///
+    /// # Arguments
+    ///
+    /// * `current_position` - The current position of the quadrotor
+    /// * `current_orientation` - The current orientation of the quadrotor
+    /// * `current_velocity` - The current velocity of the quadrotor
+    /// * `time` - The current simulation time
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the desired position, velocity, and yaw angle
     fn update(
         &mut self,
         current_position: Vector3<f32>,
@@ -518,6 +775,14 @@ impl PlannerManager {
             .plan(current_position, current_velocity, time)
     }
 }
+/// Updates the planner based on the current simulation step
+///
+/// # Arguments
+///
+/// * `planner_manager` - The PlannerManager instance to update
+/// * `step` - The current simulation step
+/// * `time` - The current simulation time
+/// * `quad` - The Quadrotor instance
 fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, quad: &Quadrotor) {
     match step {
         500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
@@ -594,6 +859,15 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
         _ => {}
     }
 }
+/// Logs simulation data to the rerun recording stream
+///
+/// # Arguments
+///
+/// * `rec` - The rerun::RecordingStream instance
+/// * `quad` - The Quadrotor instance
+/// * `desired_position` - The desired position vector
+/// * `measured_accel` - The measured acceleration vector
+/// * `measured_gyro` - The measured angular velocity vector
 fn log_data(
     rec: &rerun::RecordingStream,
     quad: &Quadrotor,
@@ -641,6 +915,7 @@ fn log_data(
         rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
     }
 }
+/// Main function to run the quadrotor simulation
 fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = PIDController::new();
