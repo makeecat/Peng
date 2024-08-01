@@ -50,7 +50,7 @@ impl Quadrotor {
     pub fn update_dynamics_with_controls(
         &mut self,
         control_thrust: f32,
-        control_torque: Vector3<f32>,
+        control_torque: &Vector3<f32>,
     ) {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * self.velocity.norm() * self.velocity;
@@ -62,10 +62,9 @@ impl Quadrotor {
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
 
-        let inertia_inv = self.inertia_matrix_inv;
         let inertia_angular_velocity = self.inertia_matrix * self.angular_velocity;
         let gyroscopic_torque = self.angular_velocity.cross(&inertia_angular_velocity);
-        let angular_acceleration = inertia_inv * (control_torque - gyroscopic_torque);
+        let angular_acceleration = self.inertia_matrix_inv * (control_torque - gyroscopic_torque);
 
         self.angular_velocity += angular_acceleration * self.time_step;
         self.orientation *=
@@ -187,9 +186,9 @@ impl PIDController {
 
     fn compute_attitude_control(
         &mut self,
-        desired_orientation: UnitQuaternion<f32>,
-        current_orientation: UnitQuaternion<f32>,
-        current_angular_velocity: Vector3<f32>,
+        desired_orientation: &UnitQuaternion<f32>,
+        current_orientation: &UnitQuaternion<f32>,
+        current_angular_velocity: &Vector3<f32>,
         dt: f32,
     ) -> Vector3<f32> {
         let error_orientation = current_orientation.inverse() * desired_orientation;
@@ -197,9 +196,8 @@ impl PIDController {
         let error_angles = Vector3::new(roll_error, pitch_error, yaw_error);
 
         self.integral_att_error += error_angles * dt;
-        self.integral_att_error = self
-            .integral_att_error
-            .component_mul(&self.max_integral_att.map(|x| x.signum()));
+        self.integral_att_error
+            .component_mul_assign(&self.max_integral_att.map(|x| x.signum()));
         for i in 0..3 {
             if self.integral_att_error[i].abs() > self.max_integral_att[i] {
                 self.integral_att_error[i] =
@@ -347,7 +345,6 @@ impl Planner for LissajousPlanner {
         let t = (time - self.start_time) / self.duration;
         let t = t.clamp(0.0, 1.0);
 
-        // Smooth start function
         let smooth_start = if t < self.ramp_time / self.duration {
             let t_ramp = t / (self.ramp_time / self.duration);
             t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
@@ -355,16 +352,12 @@ impl Planner for LissajousPlanner {
             1.0
         };
 
-        // Velocity ramp function
         let velocity_ramp = if t < self.ramp_time / self.duration {
-            // Ramp up
             smooth_start
         } else if t > 1.0 - self.ramp_time / self.duration {
-            // Ramp down
             let t_down = (1.0 - t) / (self.ramp_time / self.duration);
             t_down * t_down * (3.0 - 2.0 * t_down)
         } else {
-            // Full amplitude
             1.0
         };
 
@@ -399,7 +392,6 @@ impl Planner for LissajousPlanner {
         ) * velocity_ramp
             / self.duration;
 
-        // Add the velocity of the transition from start position to center
         if t < self.ramp_time / self.duration {
             let transition_velocity = (self.center - self.start_position)
                 * (2.0 * t / self.ramp_time - 2.0 * t * t / (self.ramp_time * self.ramp_time))
@@ -408,7 +400,6 @@ impl Planner for LissajousPlanner {
         }
 
         let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
-
         (position, velocity, yaw)
     }
 
@@ -438,7 +429,6 @@ impl Planner for CirclePlanner {
         let t = (time - self.start_time) / self.duration;
         let t = t.clamp(0.0, 1.0);
 
-        // Smooth start function
         let smooth_start = if t < self.ramp_time / self.duration {
             let t_ramp = t / (self.ramp_time / self.duration);
             t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
@@ -446,16 +436,12 @@ impl Planner for CirclePlanner {
             1.0
         };
 
-        // Velocity ramp function
         let velocity_ramp = if t < self.ramp_time / self.duration {
-            // Ramp up
             smooth_start
         } else if t > 1.0 - self.ramp_time / self.duration {
-            // Ramp down
             let t_down = (1.0 - t) / (self.ramp_time / self.duration);
             t_down * t_down * (3.0 - 2.0 * t_down)
         } else {
-            // Full amplitude
             1.0
         };
 
@@ -472,9 +458,7 @@ impl Planner for CirclePlanner {
         );
 
         let velocity = tangential_velocity * velocity_ramp;
-
         let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
-
         (position, velocity, yaw)
     }
 
@@ -492,7 +476,6 @@ impl PlannerManager {
             target_position: initial_position,
             target_yaw: initial_yaw,
         };
-
         Self {
             current_planner: Box::new(hover_planner),
         }
@@ -515,12 +498,86 @@ impl PlannerManager {
                 target_yaw: current_orientation.euler_angles().2, // TODO: fix the yaw angle calculation
             });
         }
-
         self.current_planner
             .plan(current_position, current_velocity, time)
     }
 }
-
+fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, quad: &Quadrotor) {
+    match step {
+        500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(0.0, 0.0, 1.0),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: 0.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        1000 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(1.0, 0.0, 1.0),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: 0.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        1500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(1.0, 1.0, 1.0),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: std::f32::consts::PI / 2.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        2000 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(0.0, 1.0, 1.0),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: std::f32::consts::PI / 2.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        2500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(0.0, 0.0, 0.5),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: 0.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        3000 => planner_manager.set_planner(Box::new(LissajousPlanner {
+            start_position: quad.position,
+            center: Vector3::new(0.5, 0.5, 1.0),
+            amplitude: Vector3::new(0.5, 0.5, 0.2),
+            frequency: Vector3::new(1.0, 2.0, 3.0),
+            phase: Vector3::new(0.0, std::f32::consts::PI / 2.0, 0.0),
+            start_time: time,
+            duration: 20.0,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: quad.orientation.euler_angles().2 + 2.0 * std::f32::consts::PI,
+            ramp_time: 5.0,
+        })),
+        5200 => planner_manager.set_planner(Box::new(CirclePlanner {
+            center: Vector3::new(0.5, 0.5, 1.0),
+            radius: 0.5,
+            angular_velocity: 1.0,
+            start_position: quad.position,
+            start_time: time,
+            duration: 8.0,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: quad.orientation.euler_angles().2,
+            ramp_time: 2.0,
+        })),
+        6200 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: 0.0,
+            start_time: time,
+            duration: 3.0,
+        })),
+        _ => {}
+    }
+}
 fn log_data(
     rec: &rerun::RecordingStream,
     quad: &Quadrotor,
@@ -580,105 +637,9 @@ fn main() {
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);
-        if i == 500 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(0.0, 0.0, 1.0),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: 0.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 1000 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(1.0, 0.0, 1.0),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: 0.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 1500 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(1.0, 1.0, 1.0),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: std::f32::consts::PI / 2.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 2000 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(0.0, 1.0, 1.0),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: std::f32::consts::PI / 2.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 2500 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(0.0, 0.0, 0.5),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: 0.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 3000 {
-            let current_position = quad.position;
-            let current_yaw = quad.orientation.euler_angles().2;
-            let lissajous_center = Vector3::new(0.5, 0.5, 1.0);
-
-            let new_planner = Box::new(LissajousPlanner {
-                start_position: current_position,
-                center: lissajous_center,
-                amplitude: Vector3::new(0.5, 0.5, 0.2),
-                frequency: Vector3::new(1.0, 2.0, 3.0),
-                phase: Vector3::new(0.0, std::f32::consts::PI / 2.0, 0.0),
-                start_time: time,
-                duration: 20.0,
-                start_yaw: current_yaw,
-                end_yaw: current_yaw + 2.0 * std::f32::consts::PI,
-                ramp_time: 5.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 5200 {
-            let current_position = quad.position;
-            let current_yaw = quad.orientation.euler_angles().2;
-            let circle_center = Vector3::new(0.5, 0.5, 1.0);
-
-            let new_planner = Box::new(CirclePlanner {
-                center: circle_center,
-                radius: 0.5,
-                angular_velocity: 1.0,
-                start_position: current_position,
-                start_time: time,
-                duration: 8.0,
-                start_yaw: current_yaw,
-                end_yaw: current_yaw,
-                ramp_time: 2.0,
-            });
-            planner_manager.set_planner(new_planner);
-        } else if i == 6200 {
-            let new_planner = Box::new(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: 0.0,
-                start_time: time,
-                duration: 3.0,
-            });
-            planner_manager.set_planner(new_planner);
-        }
+        update_planner(&mut planner_manager, i, time, &quad);
         let (desired_position, desired_velocity, desired_yaw) =
             planner_manager.update(quad.position, quad.orientation, quad.velocity, time);
-
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             desired_velocity,
@@ -690,13 +651,12 @@ fn main() {
             quad.gravity,
         );
         let torque = controller.compute_attitude_control(
-            calculated_desired_orientation,
-            quad.orientation,
-            quad.angular_velocity,
+            &calculated_desired_orientation,
+            &quad.orientation,
+            &quad.angular_velocity,
             quad.time_step,
         );
-
-        quad.update_dynamics_with_controls(thrust, torque);
+        quad.update_dynamics_with_controls(thrust, &torque);
         imu.update(quad.time_step);
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
