@@ -28,5 +28,5 @@ Licensed under the GPL-3.0 License. See the LICENSE file for details.
 
 ## Why call it Peng?
 Peng (traditional Chinese: 鵬; simplified Chinese: 鹏; pinyin: péng; Wade–Giles: p'eng) or Dapeng (大鵬) is a giant bird that transforms from a Kun (鯤; 鲲; kūn; k'un) giant fish in Chinese mythology.
-Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
+Reference: <https://en.wikipedia.org/wiki/Peng_(mythology)>
 
