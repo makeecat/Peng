@@ -259,6 +259,37 @@ impl PIDController {
         (thrust, desired_orientation)
     }
 }
+enum PlannerType {
+    Hover(HoverPlanner),
+    MinimumJerkLine(MinimumJerkLinePlanner),
+    Lissajous(LissajousPlanner),
+    Circle(CirclePlanner),
+}
+impl PlannerType {
+    fn plan(
+        &self,
+        current_position: Vector3<f32>,
+        current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        match self {
+            PlannerType::Hover(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::MinimumJerkLine(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::Lissajous(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::Circle(p) => p.plan(current_position, current_velocity, time),
+        }
+    }
+
+    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+        match self {
+            PlannerType::Hover(p) => p.is_finished(current_position, time),
+            PlannerType::MinimumJerkLine(p) => p.is_finished(current_position, time),
+            PlannerType::Lissajous(p) => p.is_finished(current_position, time),
+            PlannerType::Circle(p) => p.is_finished(current_position, time),
+        }
+    }
+}
+
 trait Planner {
     fn plan(
         &self,
@@ -467,7 +498,7 @@ impl Planner for CirclePlanner {
     }
 }
 struct PlannerManager {
-    current_planner: Box<dyn Planner>,
+    current_planner: PlannerType,
 }
 
 impl PlannerManager {
@@ -477,14 +508,13 @@ impl PlannerManager {
             target_yaw: initial_yaw,
         };
         Self {
-            current_planner: Box::new(hover_planner),
+            current_planner: PlannerType::Hover(hover_planner),
         }
     }
 
-    fn set_planner(&mut self, new_planner: Box<dyn Planner>) {
+    fn set_planner(&mut self, new_planner: PlannerType) {
         self.current_planner = new_planner;
     }
-
     fn update(
         &mut self,
         current_position: Vector3<f32>,
@@ -493,9 +523,9 @@ impl PlannerManager {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         if self.current_planner.is_finished(current_position, time) {
-            self.current_planner = Box::new(HoverPlanner {
+            self.current_planner = PlannerType::Hover(HoverPlanner {
                 target_position: current_position,
-                target_yaw: current_orientation.euler_angles().2, // TODO: fix the yaw angle calculation
+                target_yaw: current_orientation.euler_angles().2,
             });
         }
         self.current_planner
@@ -504,7 +534,7 @@ impl PlannerManager {
 }
 fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, quad: &Quadrotor) {
     match step {
-        500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(0.0, 0.0, 1.0),
             start_yaw: quad.orientation.euler_angles().2,
@@ -512,7 +542,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 3.0,
         })),
-        1000 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        1000 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(1.0, 0.0, 1.0),
             start_yaw: quad.orientation.euler_angles().2,
@@ -520,7 +550,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 3.0,
         })),
-        1500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        1500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(1.0, 1.0, 1.0),
             start_yaw: quad.orientation.euler_angles().2,
@@ -528,7 +558,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 3.0,
         })),
-        2000 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        2000 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(0.0, 1.0, 1.0),
             start_yaw: quad.orientation.euler_angles().2,
@@ -536,7 +566,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 3.0,
         })),
-        2500 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        2500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(0.0, 0.0, 0.5),
             start_yaw: quad.orientation.euler_angles().2,
@@ -544,7 +574,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 3.0,
         })),
-        3000 => planner_manager.set_planner(Box::new(LissajousPlanner {
+        3000 => planner_manager.set_planner(PlannerType::Lissajous(LissajousPlanner {
             start_position: quad.position,
             center: Vector3::new(0.5, 0.5, 1.0),
             amplitude: Vector3::new(0.5, 0.5, 0.2),
@@ -556,7 +586,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             end_yaw: quad.orientation.euler_angles().2 + 2.0 * std::f32::consts::PI,
             ramp_time: 5.0,
         })),
-        5200 => planner_manager.set_planner(Box::new(CirclePlanner {
+        5200 => planner_manager.set_planner(PlannerType::Circle(CirclePlanner {
             center: Vector3::new(0.5, 0.5, 1.0),
             radius: 0.5,
             angular_velocity: 1.0,
@@ -567,7 +597,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             end_yaw: quad.orientation.euler_angles().2,
             ramp_time: 2.0,
         })),
-        6200 => planner_manager.set_planner(Box::new(MinimumJerkLinePlanner {
+        6200 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
             start_yaw: quad.orientation.euler_angles().2,
