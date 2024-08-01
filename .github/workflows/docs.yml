@@ -16,9 +16,14 @@ jobs:
         toolchain: stable
     - name: Generate Docs
       run: cargo doc --no-deps
+    - name: Prepare docs for deployment
+      run: |
+        mkdir gh-pages
+        mv target/doc/* gh-pages/
+        touch gh-pages/.nojekyll
     - name: Deploy Docs
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target/doc
+        publish_dir: ./gh-pages
         force_orphan: true
