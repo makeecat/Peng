@@ -324,6 +324,98 @@ impl Planner for MinimumJerkLinePlanner {
             && _time >= self.start_time + self.duration
     }
 }
+struct LissajousPlanner {
+    start_position: Vector3<f32>,
+    center: Vector3<f32>,
+    amplitude: Vector3<f32>,
+    frequency: Vector3<f32>,
+    phase: Vector3<f32>,
+    start_time: f32,
+    duration: f32,
+    start_yaw: f32,
+    end_yaw: f32,
+    ramp_time: f32,
+}
+
+impl Planner for LissajousPlanner {
+    fn plan(
+        &self,
+        _current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let t = (time - self.start_time) / self.duration;
+        let t = t.clamp(0.0, 1.0);
+
+        // Smooth start function
+        let smooth_start = if t < self.ramp_time / self.duration {
+            let t_ramp = t / (self.ramp_time / self.duration);
+            t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
+        } else {
+            1.0
+        };
+
+        // Velocity ramp function
+        let velocity_ramp = if t < self.ramp_time / self.duration {
+            // Ramp up
+            smooth_start
+        } else if t > 1.0 - self.ramp_time / self.duration {
+            // Ramp down
+            let t_down = (1.0 - t) / (self.ramp_time / self.duration);
+            t_down * t_down * (3.0 - 2.0 * t_down)
+        } else {
+            // Full amplitude
+            1.0
+        };
+
+        let lissajous = Vector3::new(
+            self.amplitude.x
+                * (self.frequency.x * t * 2.0 * std::f32::consts::PI + self.phase.x).sin(),
+            self.amplitude.y
+                * (self.frequency.y * t * 2.0 * std::f32::consts::PI + self.phase.y).sin(),
+            self.amplitude.z
+                * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).sin(),
+        );
+
+        let position =
+            self.start_position + smooth_start * ((self.center + lissajous) - self.start_position);
+
+        let mut velocity = Vector3::new(
+            self.amplitude.x
+                * self.frequency.x
+                * 2.0
+                * std::f32::consts::PI
+                * (self.frequency.x * t * 2.0 * std::f32::consts::PI + self.phase.x).cos(),
+            self.amplitude.y
+                * self.frequency.y
+                * 2.0
+                * std::f32::consts::PI
+                * (self.frequency.y * t * 2.0 * std::f32::consts::PI + self.phase.y).cos(),
+            self.amplitude.z
+                * self.frequency.z
+                * 2.0
+                * std::f32::consts::PI
+                * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).cos(),
+        ) * velocity_ramp
+            / self.duration;
+
+        // Add the velocity of the transition from start position to center
+        if t < self.ramp_time / self.duration {
+            let transition_velocity = (self.center - self.start_position)
+                * (2.0 * t / self.ramp_time - 2.0 * t * t / (self.ramp_time * self.ramp_time))
+                / self.duration;
+            velocity += transition_velocity;
+        }
+
+        let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
+
+        (position, velocity, yaw)
+    }
+
+    fn is_finished(&self, _current_position: Vector3<f32>, time: f32) -> bool {
+        time >= self.start_time + self.duration
+    }
+}
 struct PlannerManager {
     current_planner: Box<dyn Planner>,
 }
@@ -473,9 +565,27 @@ fn main() {
             });
             planner_manager.set_planner(new_planner);
         } else if i == 3000 {
+            let current_position = quad.position;
+            let current_yaw = quad.orientation.euler_angles().2;
+            let lissajous_center = Vector3::new(0.5, 0.5, 1.0);
+
+            let new_planner = Box::new(LissajousPlanner {
+                start_position: current_position,
+                center: lissajous_center,
+                amplitude: Vector3::new(0.5, 0.5, 0.2),
+                frequency: Vector3::new(1.0, 2.0, 3.0),
+                phase: Vector3::new(0.0, std::f32::consts::PI / 2.0, 0.0),
+                start_time: time,
+                duration: 20.0,
+                start_yaw: current_yaw,
+                end_yaw: current_yaw + 2.0 * std::f32::consts::PI, // Full 360-degree rotation
+                ramp_time: 5.0,                                    // 2 seconds ramp up and down
+            });
+            planner_manager.set_planner(new_planner);
+        } else if i == 5200 {
             let new_planner = Box::new(MinimumJerkLinePlanner {
                 start_position: quad.position,
-                end_position: Vector3::new(0.0, 0.0, 0.0),
+                end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
                 start_yaw: quad.orientation.euler_angles().2,
                 end_yaw: 0.0,
                 start_time: time,
@@ -515,7 +625,7 @@ fn main() {
             &_measured_gyro,
         );
         i += 1;
-        if i >= 3500 {
+        if i >= 6000 {
             break;
         }
     }
