@@ -1,4 +1,6 @@
 # Peng
+[docs](https://makeecat.github.io/Peng/)
+
 Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
 ## Dependencies
 nalgebra
