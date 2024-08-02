@@ -289,8 +289,8 @@ impl PIDController {
             kd_pos: Vector3::new(2.4, 2.4, 6.7),
             kp_att: Vector3::new(1.5, 1.5, 1.0),
             kd_att: Vector3::new(0.13, 0.13, 0.1),
-            ki_pos: Vector3::new(0.00, 0.00, 0.01),
-            ki_att: Vector3::new(0.00, 0.00, 0.01),
+            ki_pos: Vector3::new(0.00, 0.00, 0.00),
+            ki_att: Vector3::new(0.00, 0.00, 0.00),
             integral_pos_error: Vector3::zeros(),
             integral_att_error: Vector3::zeros(),
             max_integral_pos: Vector3::new(10.0, 10.0, 10.0),
@@ -406,6 +406,8 @@ enum PlannerType {
     Lissajous(LissajousPlanner),
     /// Circular trajectory
     Circle(CirclePlanner),
+    /// Landing trajectory
+    Landing(LandingPlanner),
 }
 impl PlannerType {
     /// Plans the trajectory based on the current planner type
@@ -430,6 +432,7 @@ impl PlannerType {
             PlannerType::MinimumJerkLine(p) => p.plan(current_position, current_velocity, time),
             PlannerType::Lissajous(p) => p.plan(current_position, current_velocity, time),
             PlannerType::Circle(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::Landing(p) => p.plan(current_position, current_velocity, time),
         }
     }
     /// Checks if the current trajectory is finished
@@ -448,6 +451,7 @@ impl PlannerType {
             PlannerType::MinimumJerkLine(p) => p.is_finished(current_position, time),
             PlannerType::Lissajous(p) => p.is_finished(current_position, time),
             PlannerType::Circle(p) => p.is_finished(current_position, time),
+            PlannerType::Landing(p) => p.is_finished(current_position, time),
         }
     }
 }
@@ -712,6 +716,38 @@ impl Planner for CirclePlanner {
         time >= self.start_time + self.duration
     }
 }
+
+/// Planner for landing maneuvers
+struct LandingPlanner {
+    /// Starting position of the landing maneuver
+    start_position: Vector3<f32>,
+    /// Start time of the landing maneuver
+    start_time: f32,
+    /// Duration of the landing maneuver
+    duration: f32,
+    /// Starting yaw angle
+    start_yaw: f32,
+}
+
+impl Planner for LandingPlanner {
+    fn plan(
+        &self,
+        _current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
+        let target_z = self.start_position.z * (1.0 - t);
+        let target_position = Vector3::new(self.start_position.x, self.start_position.y, target_z);
+        let target_velocity = Vector3::new(0.0, 0.0, -self.start_position.z / self.duration);
+        (target_position, target_velocity, self.start_yaw)
+    }
+
+    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+        current_position.z < 0.05 || time >= self.start_time + self.duration
+    }
+}
+
 /// Manages different trajectory planners and switches between them
 struct PlannerManager {
     /// The currently active planner
@@ -850,15 +886,101 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
         })),
         6200 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
-            end_position: Vector3::new(quad.position.x, quad.position.y, 0.0),
+            end_position: Vector3::new(quad.position.x, quad.position.y, 0.5),
             start_yaw: quad.orientation.euler_angles().2,
             end_yaw: 0.0,
             start_time: time,
-            duration: 3.0,
+            duration: 5.0,
+        })),
+        7000 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+            start_position: quad.position,
+            start_time: time,
+            duration: 5.0,
+            start_yaw: quad.orientation.euler_angles().2,
         })),
         _ => {}
     }
 }
+/// Represents an obstacle in the simulation
+///
+/// # Fields
+///
+/// * `position` - The position of the obstacle
+/// * `velocity` - The velocity of the obstacle
+/// * `radius` - The radius of the obstacle
+struct Obstacle {
+    position: Vector3<f32>,
+    velocity: Vector3<f32>,
+    radius: f32,
+}
+
+impl Obstacle {
+    fn new(position: Vector3<f32>, velocity: Vector3<f32>, radius: f32) -> Self {
+        Self {
+            position,
+            velocity,
+            radius,
+        }
+    }
+}
+/// Generates a random set of obstacles
+///
+/// # Arguments
+///
+/// * `num_obstacles` - The number of obstacles to generate
+/// * `bounds` - The bounds of the simulation space
+///
+/// # Returns
+///
+/// A vector of randomly generated obstacles
+fn generate_random_obstacles(num_obstacles: usize, bounds: Vector3<f32>) -> Vec<Obstacle> {
+    let mut rng = rand::thread_rng();
+    let mut obstacles = Vec::new();
+    for _ in 0..num_obstacles {
+        let position = Vector3::new(
+            rand::Rng::gen_range(&mut rng, -bounds.x..bounds.x),
+            rand::Rng::gen_range(&mut rng, -bounds.y..bounds.y),
+            rand::Rng::gen_range(&mut rng, 0.0..bounds.z),
+        );
+        let velocity = Vector3::new(
+            rand::Rng::gen_range(&mut rng, -0.2..0.2),
+            rand::Rng::gen_range(&mut rng, -0.2..0.2),
+            rand::Rng::gen_range(&mut rng, -0.1..0.1),
+        );
+        let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
+        obstacles.push(Obstacle::new(position, velocity, radius));
+    }
+    obstacles
+}
+
+/// Updates the positions of the obstacles
+/// Bounces them off the boundaries if they collide
+/// Keeps them within the bounds of the simulation
+///
+/// # Arguments
+///
+/// * `obstacles` - A mutable reference to the vector of obstacles
+/// * `bounds` - The bounds of the simulation space
+/// * `dt` - The time step
+fn update_obstacles(obstacles: &mut Vec<Obstacle>, bounds: &Vector3<f32>, dt: f32) {
+    for obstacle in obstacles.iter_mut() {
+        // Update position
+        obstacle.position += obstacle.velocity * dt;
+        // Bounce off boundaries
+        for i in 0..3 {
+            if obstacle.position[i] - obstacle.radius < 0.0
+                || obstacle.position[i] + obstacle.radius > bounds[i]
+            {
+                obstacle.velocity[i] = -obstacle.velocity[i];
+            }
+        }
+        // Ensure obstacles stay within bounds
+        obstacle.position = obstacle
+            .position
+            .zip_map(bounds, |p, b| p.clamp(obstacle.radius, b - obstacle.radius));
+    }
+}
+
 /// Logs simulation data to the rerun recording stream
 ///
 /// # Arguments
@@ -890,7 +1012,8 @@ fn log_data(
                 quad.orientation.k,
                 quad.orientation.w,
             ]),
-        ),
+        )
+        .with_axis_length(0.5),
     )
     .unwrap();
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
@@ -915,6 +1038,83 @@ fn log_data(
         rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
     }
 }
+
+/// A struct to hold trajectory data
+/// # Fields
+/// * `points` - A vector of 3D points
+struct Trajectory {
+    points: Vec<Vector3<f32>>,
+}
+
+/// log trajectory data to the rerun recording stream
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `trajectory` - The Trajectory instance
+fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
+    let path = trajectory
+        .points
+        .iter()
+        .map(|p| (p.x, p.y, p.z))
+        .collect::<Vec<_>>();
+    rec.log("path", &rerun::LineStrips3D::new([path])).unwrap();
+}
+
+/// log obstacle data to the rerun recording stream
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `obstacles` - A slice of obstacles
+fn log_obstacles(rec: &rerun::RecordingStream, obstacles: &[Obstacle]) {
+    for (i, obstacle) in obstacles.iter().enumerate() {
+        // generate name of obstacle i
+        let name = format!("obstacle_{}", i);
+        rec.log(
+            name,
+            &rerun::Points3D::new([(
+                obstacle.position.x,
+                obstacle.position.y,
+                obstacle.position.z,
+            )])
+            .with_radii([obstacle.radius]),
+        )
+        .unwrap();
+    }
+}
+
+/// log mesh data to the rerun recording stream
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `division` - The number of divisions in the mesh
+/// * `spacing` - The spacing between divisions
+fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
+    let grid_size = division + 1;
+    let half_grid_size = (division as f32 * spacing) / 2.0;
+    let points: Vec<rerun::external::glam::Vec3> = (0..grid_size)
+        .flat_map(|i| {
+            (0..grid_size).map(move |j| {
+                rerun::external::glam::Vec3::new(
+                    j as f32 * spacing - half_grid_size,
+                    i as f32 * spacing - half_grid_size,
+                    0.0,
+                )
+            })
+        })
+        .collect();
+    let horizontal_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
+        .map(|i| points[i * grid_size..(i + 1) * grid_size].to_vec())
+        .collect();
+    let vertical_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
+        .map(|j| (0..grid_size).map(|i| points[i * grid_size + j]).collect())
+        .collect();
+    let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
+        horizontal_lines.into_iter().chain(vertical_lines).collect();
+    rec.log(
+        "grid_lines",
+        &rerun::LineStrips3D::new(line_strips)
+            .with_colors([rerun::Color::from_rgb(255, 255, 255)])
+            .with_radii([0.02]),
+    )
+    .unwrap();
+}
 /// Main function to run the quadrotor simulation
 fn main() {
     let mut quad = Quadrotor::new();
@@ -923,11 +1123,19 @@ fn main() {
     let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
         .connect()
         .unwrap();
+
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
+    let bounds = Vector3::new(2.0, 2.0, 2.0);
+    let mut obstacles = generate_random_obstacles(10, bounds);
+    let mut trajectory = Trajectory {
+        points: vec![Vector3::new(0.0, 0.0, 0.0)],
+    };
     let mut i = 0;
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);
+        log_mesh(&rec, 10, 0.5);
+        update_obstacles(&mut obstacles, &bounds, quad.time_step);
         update_planner(&mut planner_manager, i, time, &quad);
         let (desired_position, desired_velocity, desired_yaw) =
             planner_manager.update(quad.position, quad.orientation, quad.velocity, time);
@@ -951,15 +1159,20 @@ fn main() {
         imu.update(quad.time_step);
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
-        log_data(
-            &rec,
-            &quad,
-            &desired_position,
-            &_measured_accel,
-            &_measured_gyro,
-        );
+        if i % 5 == 0 {
+            trajectory.points.push(quad.position);
+            log_trajectory(&rec, &trajectory);
+            log_obstacles(&rec, &obstacles);
+            log_data(
+                &rec,
+                &quad,
+                &desired_position,
+                &_measured_accel,
+                &_measured_gyro,
+            );
+        }
         i += 1;
-        if i >= 7000 {
+        if i >= 8000 {
             break;
         }
     }
