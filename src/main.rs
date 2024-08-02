@@ -408,6 +408,8 @@ enum PlannerType {
     Circle(CirclePlanner),
     /// Landing trajectory
     Landing(LandingPlanner),
+    /// Obstacle Avoidance Planner based on Potential field
+    ObstacleAvoidance(ObstacleAvoidancePlanner),
 }
 impl PlannerType {
     /// Plans the trajectory based on the current planner type
@@ -433,6 +435,7 @@ impl PlannerType {
             PlannerType::Lissajous(p) => p.plan(current_position, current_velocity, time),
             PlannerType::Circle(p) => p.plan(current_position, current_velocity, time),
             PlannerType::Landing(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::ObstacleAvoidance(p) => p.plan(current_position, current_velocity, time),
         }
     }
     /// Checks if the current trajectory is finished
@@ -452,6 +455,7 @@ impl PlannerType {
             PlannerType::Lissajous(p) => p.is_finished(current_position, time),
             PlannerType::Circle(p) => p.is_finished(current_position, time),
             PlannerType::Landing(p) => p.is_finished(current_position, time),
+            PlannerType::ObstacleAvoidance(p) => p.is_finished(current_position, time),
         }
     }
 }
@@ -800,6 +804,7 @@ impl PlannerManager {
         current_orientation: UnitQuaternion<f32>,
         current_velocity: Vector3<f32>,
         time: f32,
+        obstacles: &Vec<Obstacle>,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         if self.current_planner.is_finished(current_position, time) {
             self.current_planner = PlannerType::Hover(HoverPlanner {
@@ -807,10 +812,86 @@ impl PlannerManager {
                 target_yaw: current_orientation.euler_angles().2,
             });
         }
+        // Update obstacles for ObstacleAvoidancePlanner if needed
+        if let PlannerType::ObstacleAvoidance(ref mut planner) = self.current_planner {
+            planner.obstacles = obstacles.clone();
+        }
         self.current_planner
             .plan(current_position, current_velocity, time)
     }
 }
+/// Obstacle avoidance planner
+/// This planner uses a potential field approach to avoid obstacles
+/// The planner calculates a repulsive force for each obstacle and an attractive force towards the goal
+/// The resulting force is then used to calculate the desired position and velocity
+struct ObstacleAvoidancePlanner {
+    /// Target position of the planner
+    target_position: Vector3<f32>,
+    /// Start time of the planner
+    start_time: f32,
+    /// Duration of the planner
+    duration: f32,
+    /// Starting yaw angle
+    start_yaw: f32,
+    /// Ending yaw angle
+    end_yaw: f32,
+    /// List of obstacles
+    obstacles: Vec<Obstacle>,
+    /// Attractive force gain
+    k_att: f32,
+    /// Repulsive force gain
+    k_rep: f32,
+    /// Influence distance of obstacles
+    d0: f32,
+}
+
+impl Planner for ObstacleAvoidancePlanner {
+    fn plan(
+        &self,
+        current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
+
+        // Attractive force towards the goal
+        let f_att = self.k_att * (self.target_position - current_position);
+
+        // Repulsive force from obstacles
+        let mut f_rep = Vector3::zeros();
+        for obstacle in &self.obstacles {
+            let diff = current_position - obstacle.position;
+            let distance = diff.norm();
+            if distance < self.d0 {
+                f_rep += self.k_rep
+                    * (1.0 / distance - 1.0 / self.d0)
+                    * (1.0 / distance.powi(2))
+                    * diff.normalize();
+            }
+        }
+
+        // Total force
+        let f_total = f_att + f_rep;
+
+        // Desired velocity (capped at a maximum speed)
+        let max_speed: f32 = 1.0;
+        let desired_velocity = f_total.normalize() * max_speed.min(f_total.norm());
+
+        // Desired position (current position + desired velocity)
+        let desired_position = current_position + desired_velocity * self.duration * (1.0 - t);
+
+        // Interpolate yaw
+        let desired_yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
+
+        (desired_position, desired_velocity, desired_yaw)
+    }
+
+    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+        (current_position - self.target_position).norm() < 0.1
+            || time >= self.start_time + self.duration
+    }
+}
+
 /// Updates the planner based on the current simulation step
 ///
 /// # Arguments
@@ -819,7 +900,13 @@ impl PlannerManager {
 /// * `step` - The current simulation step
 /// * `time` - The current simulation time
 /// * `quad` - The Quadrotor instance
-fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, quad: &Quadrotor) {
+fn update_planner(
+    planner_manager: &mut PlannerManager,
+    step: usize,
+    time: f32,
+    quad: &Quadrotor,
+    obstacles: &Vec<Obstacle>,
+) {
     match step {
         500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
@@ -892,7 +979,20 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
             start_time: time,
             duration: 5.0,
         })),
-        7000 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+        7000 => {
+            planner_manager.set_planner(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
+                target_position: Vector3::new(1.5, 1.0, 1.0),
+                start_time: time,
+                duration: 15.0,
+                start_yaw: quad.orientation.euler_angles().2,
+                end_yaw: 0.0,
+                obstacles: obstacles.clone(),
+                k_att: 0.05,
+                k_rep: 0.05,
+                d0: 0.1,
+            }))
+        }
+        9000 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
@@ -908,6 +1008,7 @@ fn update_planner(planner_manager: &mut PlannerManager, step: usize, time: f32, 
 /// * `position` - The position of the obstacle
 /// * `velocity` - The velocity of the obstacle
 /// * `radius` - The radius of the obstacle
+#[derive(Clone)]
 struct Obstacle {
     position: Vector3<f32>,
     velocity: Vector3<f32>,
@@ -1136,9 +1237,14 @@ fn main() {
         rec.set_time_seconds("timestamp", time);
         log_mesh(&rec, 10, 0.5);
         update_obstacles(&mut obstacles, &bounds, quad.time_step);
-        update_planner(&mut planner_manager, i, time, &quad);
-        let (desired_position, desired_velocity, desired_yaw) =
-            planner_manager.update(quad.position, quad.orientation, quad.velocity, time);
+        update_planner(&mut planner_manager, i, time, &quad, &obstacles);
+        let (desired_position, desired_velocity, desired_yaw) = planner_manager.update(
+            quad.position,
+            quad.orientation,
+            quad.velocity,
+            time,
+            &obstacles,
+        );
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             desired_velocity,
@@ -1172,7 +1278,7 @@ fn main() {
             );
         }
         i += 1;
-        if i >= 8000 {
+        if i >= 10000 {
             break;
         }
     }
