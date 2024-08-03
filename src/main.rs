@@ -888,7 +888,7 @@ impl Planner for ObstacleAvoidancePlanner {
 
     fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
         (current_position - self.target_position).norm() < 0.1
-            || time >= self.start_time + self.duration
+            && time >= self.start_time + self.duration
     }
 }
 
@@ -983,7 +983,7 @@ fn update_planner(
             planner_manager.set_planner(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
                 target_position: Vector3::new(1.5, 1.0, 1.0),
                 start_time: time,
-                duration: 15.0,
+                duration: 20.0,
                 start_yaw: quad.orientation.euler_angles().2,
                 end_yaw: 0.0,
                 obstacles: obstacles.clone(),
@@ -1187,8 +1187,8 @@ fn log_obstacles(rec: &rerun::RecordingStream, obstacles: &[Obstacle]) {
 /// * `division` - The number of divisions in the mesh
 /// * `spacing` - The spacing between divisions
 fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
-    let grid_size = division + 1;
-    let half_grid_size = (division as f32 * spacing) / 2.0;
+    let grid_size: usize = division + 1;
+    let half_grid_size: f32 = (division as f32 * spacing) / 2.0;
     let points: Vec<rerun::external::glam::Vec3> = (0..grid_size)
         .flat_map(|i| {
             (0..grid_size).map(move |j| {
@@ -1231,11 +1231,12 @@ fn main() {
     let mut trajectory = Trajectory {
         points: vec![Vector3::new(0.0, 0.0, 0.0)],
     };
+    rec.set_time_seconds("timestamp", 0);
+    log_mesh(&rec, 5, 0.5);
     let mut i = 0;
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);
-        log_mesh(&rec, 10, 0.5);
         update_obstacles(&mut obstacles, &bounds, quad.time_step);
         update_planner(&mut planner_manager, i, time, &quad, &obstacles);
         let (desired_position, desired_velocity, desired_yaw) = planner_manager.update(
