@@ -983,16 +983,16 @@ fn update_planner(
             planner_manager.set_planner(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
                 target_position: Vector3::new(1.5, 1.0, 1.0),
                 start_time: time,
-                duration: 20.0,
+                duration: 15.0,
                 start_yaw: quad.orientation.euler_angles().2,
                 end_yaw: 0.0,
                 obstacles: obstacles.clone(),
-                k_att: 0.05,
-                k_rep: 0.05,
-                d0: 0.1,
+                k_att: 0.03,
+                k_rep: 0.02,
+                d0: 0.5,
             }))
         }
-        9000 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+        8500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
@@ -1101,7 +1101,8 @@ fn log_data(
     rec.log(
         "desired_position",
         &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)])
-            .with_radii([0.1]),
+            .with_radii([0.1])
+            .with_colors([rerun::Color::from_rgb(255, 255, 255)]),
     )
     .unwrap();
     rec.log(
@@ -1273,8 +1274,6 @@ fn main() {
             if i >= 7000 && i < 9000 {
                 log_obstacles(&rec, &obstacles);
             }
-        }
-        if i % 10 == 0 {
             log_trajectory(&rec, &trajectory);
             log_data(
                 &rec,
@@ -1285,7 +1284,7 @@ fn main() {
             );
         }
         i += 1;
-        if i >= 10000 {
+        if i >= 9000 {
             break;
         }
     }
