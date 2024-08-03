@@ -1100,7 +1100,8 @@ fn log_data(
 ) {
     rec.log(
         "desired_position",
-        &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)]),
+        &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)])
+            .with_radii([0.1]),
     )
     .unwrap();
     rec.log(
@@ -1114,7 +1115,7 @@ fn log_data(
                 quad.orientation.w,
             ]),
         )
-        .with_axis_length(0.5),
+        .with_axis_length(0.7),
     )
     .unwrap();
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
@@ -1157,7 +1158,8 @@ fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
         .iter()
         .map(|p| (p.x, p.y, p.z))
         .collect::<Vec<_>>();
-    rec.log("path", &rerun::LineStrips3D::new([path])).unwrap();
+    rec.log("quadrotor_path", &rerun::LineStrips3D::new([path]))
+        .unwrap();
 }
 
 /// log obstacle data to the rerun recording stream
@@ -1167,7 +1169,7 @@ fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
 fn log_obstacles(rec: &rerun::RecordingStream, obstacles: &[Obstacle]) {
     for (i, obstacle) in obstacles.iter().enumerate() {
         // generate name of obstacle i
-        let name = format!("obstacle_{}", i);
+        let name = format!("obstacles/obstacle_{}", i);
         rec.log(
             name,
             &rerun::Points3D::new([(
@@ -1209,7 +1211,7 @@ fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
     let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
         horizontal_lines.into_iter().chain(vertical_lines).collect();
     rec.log(
-        "grid_lines",
+        "mesh",
         &rerun::LineStrips3D::new(line_strips)
             .with_colors([rerun::Color::from_rgb(255, 255, 255)])
             .with_radii([0.02]),
@@ -1268,8 +1270,12 @@ fn main() {
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
         if i % 5 == 0 {
             trajectory.points.push(quad.position);
+            if i >= 7000 && i < 9000 {
+                log_obstacles(&rec, &obstacles);
+            }
+        }
+        if i % 10 == 0 {
             log_trajectory(&rec, &trajectory);
-            log_obstacles(&rec, &obstacles);
             log_data(
                 &rec,
                 &quad,
