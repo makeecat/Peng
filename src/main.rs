@@ -100,14 +100,10 @@ impl Quadrotor {
     }
 
     /// Updates the quadrotor's dynamics with control inputs
-    ///
     /// # Arguments
-    ///
     /// * `control_thrust` - The total thrust force applied to the quadrotor
     /// * `control_torque` - The 3D torque vector applied to the quadrotor
-    ///
     /// # Examples
-    ///
     /// ```
     /// let mut quad = Quadrotor::new();
     /// let thrust = 10.0;
@@ -139,9 +135,7 @@ impl Quadrotor {
     }
 
     /// Simulates IMU readings with added noise
-    ///
     /// # Returns
-    ///
     /// A tuple containing the measured acceleration and angular velocity
     pub fn read_imu(&self) -> (Vector3<f32>, Vector3<f32>) {
         let accel_noise = Normal::new(0.0, 0.02).unwrap();
@@ -151,7 +145,6 @@ impl Quadrotor {
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let specific_force =
             self.orientation.inverse() * (self.velocity / self.time_step - gravity_world);
-
         let measured_acceleration = specific_force
             + Vector3::new(
                 accel_noise.sample(&mut rng),
@@ -184,12 +177,6 @@ struct Imu {
 
 impl Imu {
     /// Creates a new IMU with default parameters
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let imu = Imu::new();
-    /// assert_eq!(imu.accel_noise_std, 0.02);
     pub fn new() -> Self {
         Self {
             accel_bias: Vector3::zeros(),
@@ -201,9 +188,7 @@ impl Imu {
     }
 
     /// Updates the IMU biases over time
-    ///
     /// # Arguments
-    ///
     /// * `dt` - Time step for the update
     pub fn update(&mut self, dt: f32) {
         let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt()).unwrap();
@@ -214,14 +199,10 @@ impl Imu {
     }
 
     /// Simulates IMU readings with added bias and noise
-    ///
     /// # Arguments
-    ///
     /// * `true_acceleration` - The true acceleration vector
     /// * `true_angular_velocity` - The true angular velocity vector
-    ///
     /// # Returns
-    ///
     /// A tuple containing the measured acceleration and angular velocity
     pub fn read(
         &self,
@@ -276,9 +257,7 @@ struct PIDController {
 
 impl PIDController {
     /// Creates a new PIDController with default gains
-    ///
     /// # Examples
-    ///
     /// ```
     /// let controller = PIDController::new();
     /// assert_eq!(controller.kp_pos, Vector3::new(7.1, 7.1, 11.9));
@@ -299,16 +278,12 @@ impl PIDController {
     }
 
     /// Computes attitude control torques
-    ///
     /// # Arguments
-    ///
     /// * `desired_orientation` - The desired orientation quaternion
     /// * `current_orientation` - The current orientation quaternion
     /// * `current_angular_velocity` - The current angular velocity
     /// * `dt` - Time step
-    ///
     /// # Returns
-    ///
     /// The computed control torque vector
     fn compute_attitude_control(
         &mut self,
@@ -336,9 +311,7 @@ impl PIDController {
     }
 
     /// Computes position control thrust and desired orientation
-    ///
     /// # Arguments
-    ///
     /// * `desired_position` - The desired position
     /// * `desired_velocity` - The desired velocity
     /// * `desired_yaw` - The desired yaw angle
@@ -347,9 +320,7 @@ impl PIDController {
     /// * `dt` - Time step
     /// * `mass` - Mass of the quadrotor
     /// * `gravity` - Gravitational acceleration
-    ///
     /// # Returns
-    ///
     /// A tuple containing the computed thrust and desired orientation quaternion
     fn compute_position_control(
         &mut self,
@@ -413,15 +384,11 @@ enum PlannerType {
 }
 impl PlannerType {
     /// Plans the trajectory based on the current planner type
-    ///
     /// # Arguments
-    ///
     /// * `current_position` - The current position of the quadrotor
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
-    ///
     /// # Returns
-    ///
     /// A tuple containing the desired position, velocity, and yaw angle
     fn plan(
         &self,
@@ -439,14 +406,10 @@ impl PlannerType {
         }
     }
     /// Checks if the current trajectory is finished
-    ///
     /// # Arguments
-    ///
     /// * `current_position` - The current position of the quadrotor
     /// * `time` - The current simulation time
-    ///
     /// # Returns
-    ///
     /// `true` if the trajectory is finished, `false` otherwise
     fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
         match self {
@@ -463,15 +426,11 @@ impl PlannerType {
 /// Trait defining the interface for trajectory planners
 trait Planner {
     /// Plans the trajectory based on the current state and time
-    ///
     /// # Arguments
-    ///
     /// * `current_position` - The current position of the quadrotor
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
-    ///
     /// # Returns
-    ///
     /// A tuple containing the desired position, velocity, and yaw angle
     fn plan(
         &self,
@@ -481,14 +440,10 @@ trait Planner {
     ) -> (Vector3<f32>, Vector3<f32>, f32);
 
     /// Checks if the current trajectory is finished
-    ///
     /// # Arguments
-    ///
     /// * `current_position` - The current position of the quadrotor
     /// * `time` - The current simulation time
-    ///
     /// # Returns
-    ///
     /// `true` if the trajectory is finished, `false` otherwise
     fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool;
 }
@@ -760,14 +715,10 @@ struct PlannerManager {
 
 impl PlannerManager {
     /// Creates a new PlannerManager with an initial hover planner
-    ///
     /// # Arguments
-    ///
     /// * `initial_position` - The initial position for hovering
     /// * `initial_yaw` - The initial yaw angle for hovering
-    ///
     /// # Returns
-    ///
     /// A new PlannerManager instance
     fn new(initial_position: Vector3<f32>, initial_yaw: f32) -> Self {
         let hover_planner = HoverPlanner {
@@ -779,24 +730,18 @@ impl PlannerManager {
         }
     }
     /// Sets a new planner
-    ///
     /// # Arguments
-    ///
     /// * `new_planner` - The new planner to be set
     fn set_planner(&mut self, new_planner: PlannerType) {
         self.current_planner = new_planner;
     }
     /// Updates the current planner and returns the desired position, velocity, and yaw
-    ///
     /// # Arguments
-    ///
     /// * `current_position` - The current position of the quadrotor
     /// * `current_orientation` - The current orientation of the quadrotor
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
-    ///
     /// # Returns
-    ///
     /// A tuple containing the desired position, velocity, and yaw angle
     fn update(
         &mut self,
@@ -893,9 +838,7 @@ impl Planner for ObstacleAvoidancePlanner {
 }
 
 /// Updates the planner based on the current simulation step
-///
 /// # Arguments
-///
 /// * `planner_manager` - The PlannerManager instance to update
 /// * `step` - The current simulation step
 /// * `time` - The current simulation time
@@ -1002,9 +945,7 @@ fn update_planner(
     }
 }
 /// Represents an obstacle in the simulation
-///
 /// # Fields
-///
 /// * `position` - The position of the obstacle
 /// * `velocity` - The velocity of the obstacle
 /// * `radius` - The radius of the obstacle
@@ -1024,68 +965,216 @@ impl Obstacle {
         }
     }
 }
-/// Generates a random set of obstacles
-///
-/// # Arguments
-///
-/// * `num_obstacles` - The number of obstacles to generate
-/// * `bounds` - The bounds of the simulation space
-///
-/// # Returns
-///
-/// A vector of randomly generated obstacles
-fn generate_random_obstacles(num_obstacles: usize, bounds: Vector3<f32>) -> Vec<Obstacle> {
-    let mut rng = rand::thread_rng();
-    let mut obstacles = Vec::new();
-    for _ in 0..num_obstacles {
-        let position = Vector3::new(
-            rand::Rng::gen_range(&mut rng, -bounds.x..bounds.x),
-            rand::Rng::gen_range(&mut rng, -bounds.y..bounds.y),
-            rand::Rng::gen_range(&mut rng, 0.0..bounds.z),
-        );
-        let velocity = Vector3::new(
-            rand::Rng::gen_range(&mut rng, -0.2..0.2),
-            rand::Rng::gen_range(&mut rng, -0.2..0.2),
-            rand::Rng::gen_range(&mut rng, -0.1..0.1),
-        );
-        let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
-        obstacles.push(Obstacle::new(position, velocity, radius));
-    }
-    obstacles
-}
+/// Represents a maze in the simulation
+/// The maze is represented as a set of obstacles
+/// that the quadrotor must avoid
+/// # Fields
+/// * `lower_bounds` - The lower bounds of the maze
+/// * `upper_bounds` - The upper bounds of the maze
+/// * `obstacles` - The obstacles in the maze
 
-/// Updates the positions of the obstacles
-/// Bounces them off the boundaries if they collide
-/// Keeps them within the bounds of the simulation
-///
-/// # Arguments
-///
-/// * `obstacles` - A mutable reference to the vector of obstacles
-/// * `bounds` - The bounds of the simulation space
-/// * `dt` - The time step
-fn update_obstacles(obstacles: &mut Vec<Obstacle>, bounds: &Vector3<f32>, dt: f32) {
-    for obstacle in obstacles.iter_mut() {
-        // Update position
-        obstacle.position += obstacle.velocity * dt;
-        // Bounce off boundaries
-        for i in 0..3 {
-            if obstacle.position[i] - obstacle.radius < 0.0
-                || obstacle.position[i] + obstacle.radius > bounds[i]
-            {
-                obstacle.velocity[i] = -obstacle.velocity[i];
+struct Maze {
+    lower_bounds: Vector3<f32>,
+    upper_bounds: Vector3<f32>,
+    obstacles: Vec<Obstacle>,
+}
+impl Maze {
+    /// Creates a new maze with the given bounds and number of obstacles
+    /// The obstacles are randomly generated within the bounds
+    /// # Arguments
+    /// * `lower_bounds` - The lower bounds of the maze
+    /// * `upper_bounds` - The upper bounds of the maze
+    /// * `num_obstacles` - The number of obstacles in the maze
+    fn new(lower_bounds: Vector3<f32>, upper_bounds: Vector3<f32>, num_obstacles: usize) -> Self {
+        let mut maze = Maze {
+            lower_bounds,
+            upper_bounds,
+            obstacles: Vec::new(),
+        };
+        maze.generate_obstacles(num_obstacles);
+        maze
+    }
+    /// Generates the obstacles in the maze
+    /// # Arguments
+    /// * `num_obstacles` - The number of obstacles to generate
+    fn generate_obstacles(&mut self, num_obstacles: usize) {
+        let mut rng = rand::thread_rng();
+        for _ in 0..num_obstacles {
+            let position = Vector3::new(
+                rand::Rng::gen_range(&mut rng, self.lower_bounds.x..self.upper_bounds.x),
+                rand::Rng::gen_range(&mut rng, self.lower_bounds.y..self.upper_bounds.y),
+                rand::Rng::gen_range(&mut rng, self.lower_bounds.z..self.upper_bounds.z),
+            );
+            let velocity = Vector3::new(
+                rand::Rng::gen_range(&mut rng, -0.2..0.2),
+                rand::Rng::gen_range(&mut rng, -0.2..0.2),
+                rand::Rng::gen_range(&mut rng, -0.1..0.1),
+            );
+            let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
+            self.obstacles
+                .push(Obstacle::new(position, velocity, radius));
+        }
+    }
+    /// Updates the obstacles in the maze
+    /// The obstacles are moved according to their velocities
+    /// If an obstacle hits a boundary, it bounces off
+    /// # Arguments
+    /// * `dt` - The time step
+    fn update_obstacles(&mut self, dt: f32) {
+        for obstacle in self.obstacles.iter_mut() {
+            // Update position
+            obstacle.position += obstacle.velocity * dt;
+            // Bounce off boundaries
+            for i in 0..3 {
+                if obstacle.position[i] - obstacle.radius < self.lower_bounds[i]
+                    || obstacle.position[i] + obstacle.radius > self.upper_bounds[i]
+                {
+                    obstacle.velocity[i] = -obstacle.velocity[i];
+                }
             }
         }
-        // Ensure obstacles stay within bounds
-        obstacle.position = obstacle
-            .position
-            .zip_map(bounds, |p, b| p.clamp(obstacle.radius, b - obstacle.radius));
     }
 }
 
+/// Represents a camera in the simulation
+/// The camera is used to render the depth of the scene
+/// from the perspective of the quadrotor
+/// The depth is used by the obstacle avoidance planner
+/// # Fields
+/// * `resolution` - The resolution of the camera
+/// * `fov` - The field of view of the camera
+/// * `near` - The near clipping plane of the camera
+/// * `far` - The far clipping plane of the camera
+/// * `tan_half_fov` - The tangent of half the field of view
+/// * `aspect_ratio` - The aspect ratio of the camera
+struct Camera {
+    resolution: (usize, usize),
+    fov: f32,
+    near: f32,
+    far: f32,
+    tan_half_fov: f32,
+    aspect_ratio: f32,
+}
+
+impl Camera {
+    /// Creates a new camera with the given resolution, field of view, near and far clipping planes
+    /// # Arguments
+    /// * `resolution` - The resolution of the camera
+    /// * `fov` - The field of view of the camera
+    /// * `near` - The near clipping plane of the camera
+    /// * `far` - The far clipping plane of the camera
+    fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
+        Camera {
+            resolution,
+            fov,
+            near,
+            far,
+            tan_half_fov: (fov / 2.0).tan(),
+            aspect_ratio: resolution.0 as f32 / resolution.1 as f32,
+        }
+    }
+    /// Renders the depth of the scene from the perspective of the quadrotor
+    /// # Arguments
+    /// * `quad_position` - The position of the quadrotor
+    /// * `quad_orientation` - The orientation of the quadrotor
+    /// * `maze` - The maze in the scene
+    /// # Returns
+    /// A vector of depth values representing the depth of the scene
+    fn render_depth(
+        &self,
+        quad_position: &Vector3<f32>,
+        quad_orientation: &UnitQuaternion<f32>,
+        maze: &Maze,
+    ) -> Vec<f32> {
+        let (width, height) = self.resolution;
+        let tan_half_fov = (self.fov / 2.0).tan();
+        let camera_to_world = quad_orientation.to_rotation_matrix().matrix()
+            * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
+        let mut depth_image = vec![self.far as f32; width * height];
+        for (i, depth) in depth_image.iter_mut().enumerate() {
+            let x = (2.0 * (i % width) as f32 / width as f32 - 1.0)
+                * self.aspect_ratio
+                * self.tan_half_fov;
+            let y = (1.0 - 2.0 * (i / width) as f32 / height as f32) * tan_half_fov;
+            let ray_dir = camera_to_world * Vector3::new(1.0, x, y).normalize();
+            if let Some(hit_distance) = self.ray_cast(quad_position, &ray_dir, maze) {
+                *depth = hit_distance as f32;
+            }
+        }
+        depth_image
+    }
+    /// Casts a ray from the camera origin in the given direction
+    /// # Arguments
+    /// * `origin` - The origin of the ray
+    /// * `direction` - The direction of the ray
+    /// * `maze` - The maze in the scene
+    /// # Returns
+    /// The distance to the closest obstacle hit by the ray
+    fn ray_cast(
+        &self,
+        origin: &Vector3<f32>,
+        direction: &Vector3<f32>,
+        maze: &Maze,
+    ) -> Option<f32> {
+        let mut closest_hit = self.far;
+
+        // Check obstacle intersections
+        for obstacle in &maze.obstacles {
+            if let Some(obstacle_hit) =
+                self.ray_sphere_intersection(origin, direction, &obstacle.position, obstacle.radius)
+            {
+                if obstacle_hit < closest_hit {
+                    closest_hit = obstacle_hit;
+                }
+            }
+        }
+
+        if closest_hit < self.far {
+            Some(closest_hit)
+        } else {
+            None
+        }
+    }
+    /// Checks if a ray intersects a sphere
+    /// The ray is defined by an origin and a direction
+    /// The sphere is defined by a center and a radius
+    /// The intersection is computed using the quadratic formula
+    /// If the discriminant is negative, the ray does not intersect the sphere
+    /// If the intersection is outside the near and far clipping planes, it is ignored
+    /// # Arguments
+    /// * `origin` - The origin of the ray
+    /// * `direction` - The direction of the ray
+    /// * `center` - The center of the sphere
+    /// * `radius` - The radius of the sphere
+    /// # Returns
+    /// The distance to the intersection point if it exists and is within the clipping planes
+    fn ray_sphere_intersection(
+        &self,
+        origin: &Vector3<f32>,
+        direction: &Vector3<f32>,
+        center: &Vector3<f32>,
+        radius: f32,
+    ) -> Option<f32> {
+        let oc = origin - center;
+        let a = direction.dot(direction);
+        let b = 2.0 * oc.dot(direction);
+        let c = oc.dot(&oc) - radius * radius;
+        let discriminant = b * b - 4.0 * a * c;
+
+        if discriminant < 0.0 {
+            None
+        } else {
+            let t = (-b - discriminant.sqrt()) / (2.0 * a);
+            if t > self.near && t < self.far {
+                Some(t)
+            } else {
+                None
+            }
+        }
+    }
+}
 /// Logs simulation data to the rerun recording stream
-///
 /// # Arguments
-///
 /// * `rec` - The rerun::RecordingStream instance
 /// * `quad` - The Quadrotor instance
 /// * `desired_position` - The desired position vector
@@ -1099,14 +1188,14 @@ fn log_data(
     measured_gyro: &Vector3<f32>,
 ) {
     rec.log(
-        "desired_position",
+        "quadrotor/desired_position",
         &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)])
             .with_radii([0.1])
             .with_colors([rerun::Color::from_rgb(255, 255, 255)]),
     )
     .unwrap();
     rec.log(
-        "quadrotor",
+        "quadrotor/current_position",
         &rerun::Transform3D::from_translation_rotation(
             rerun::Vec3D::new(quad.position.x, quad.position.y, quad.position.z),
             rerun::Quaternion::from_xyzw([
@@ -1141,7 +1230,98 @@ fn log_data(
         rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
     }
 }
+/// Log the maze tube to the rerun recording stream
+/// The tube is defined by the lower and upper bounds of the maze
+/// The tube is visualized as a wireframe cube
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `maze` - The maze instance
+fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
+    let (lower_bounds, upper_bounds) = (maze.lower_bounds, maze.upper_bounds);
+    // Define the corners of the tube
+    let corners = [
+        Vector3::new(lower_bounds.x, lower_bounds.y, lower_bounds.z),
+        Vector3::new(upper_bounds.x, lower_bounds.y, lower_bounds.z),
+        Vector3::new(upper_bounds.x, upper_bounds.y, lower_bounds.z),
+        Vector3::new(lower_bounds.x, upper_bounds.y, lower_bounds.z),
+        Vector3::new(lower_bounds.x, lower_bounds.y, upper_bounds.z),
+        Vector3::new(upper_bounds.x, lower_bounds.y, upper_bounds.z),
+        Vector3::new(upper_bounds.x, upper_bounds.y, upper_bounds.z),
+        Vector3::new(lower_bounds.x, upper_bounds.y, upper_bounds.z),
+    ];
 
+    // Define the edges of the tube
+    let edges = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4),
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7),
+    ];
+
+    // Create line strips for the edges
+    let line_strips: Vec<Vec<rerun::external::glam::Vec3>> = edges
+        .iter()
+        .map(|&(start, end)| {
+            vec![
+                rerun::external::glam::Vec3::new(
+                    corners[start].x,
+                    corners[start].y,
+                    corners[start].z,
+                ),
+                rerun::external::glam::Vec3::new(corners[end].x, corners[end].y, corners[end].z),
+            ]
+        })
+        .collect();
+    let line_radius = 0.05;
+    rec.log(
+        "maze/tube",
+        &rerun::LineStrips3D::new(line_strips)
+            .with_colors([rerun::Color::from_rgb(128, 128, 255)])
+            .with_radii([line_radius]),
+    )
+    .unwrap();
+}
+
+/// Log the maze obstacles to the rerun recording stream
+/// The obstacles are visualized as spheres
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `maze` - The maze instance
+fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
+    let positions: Vec<(f32, f32, f32)> = maze
+        .obstacles
+        .iter()
+        .map(|obstacle| {
+            (
+                obstacle.position.x,
+                obstacle.position.y,
+                obstacle.position.z,
+            )
+        })
+        .collect();
+
+    let radii: Vec<f32> = maze
+        .obstacles
+        .iter()
+        .map(|obstacle| obstacle.radius)
+        .collect();
+
+    rec.log(
+        "maze/obstacles",
+        &rerun::Points3D::new(positions)
+            .with_radii(radii)
+            .with_colors([rerun::Color::from_rgb(255, 128, 128)]),
+    )
+    .unwrap();
+}
 /// A struct to hold trajectory data
 /// # Fields
 /// * `points` - A vector of 3D points
@@ -1159,31 +1339,12 @@ fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
         .iter()
         .map(|p| (p.x, p.y, p.z))
         .collect::<Vec<_>>();
-    rec.log("quadrotor_path", &rerun::LineStrips3D::new([path]))
-        .unwrap();
+    rec.log(
+        "quadrotor/path",
+        &rerun::LineStrips3D::new([path]).with_colors([rerun::Color::from_rgb(0, 255, 255)]),
+    )
+    .unwrap();
 }
-
-/// log obstacle data to the rerun recording stream
-/// # Arguments
-/// * `rec` - The rerun::RecordingStream instance
-/// * `obstacles` - A slice of obstacles
-fn log_obstacles(rec: &rerun::RecordingStream, obstacles: &[Obstacle]) {
-    for (i, obstacle) in obstacles.iter().enumerate() {
-        // generate name of obstacle i
-        let name = format!("obstacles/obstacle_{}", i);
-        rec.log(
-            name,
-            &rerun::Points3D::new([(
-                obstacle.position.x,
-                obstacle.position.y,
-                obstacle.position.z,
-            )])
-            .with_radii([obstacle.radius]),
-        )
-        .unwrap();
-    }
-}
-
 /// log mesh data to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
@@ -1212,42 +1373,79 @@ fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
     let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
         horizontal_lines.into_iter().chain(vertical_lines).collect();
     rec.log(
-        "mesh",
+        "maze/mesh",
         &rerun::LineStrips3D::new(line_strips)
             .with_colors([rerun::Color::from_rgb(255, 255, 255)])
             .with_radii([0.02]),
     )
     .unwrap();
 }
+/// log depth image data to the rerun recording stream
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `depth_image` - The depth image data
+/// * `width` - The width of the depth image
+/// * `height` - The height of the depth image
+/// * `min_depth` - The minimum depth value
+/// * `max_depth` - The maximum depth value
+fn log_depth_image(
+    rec: &rerun::RecordingStream,
+    depth_image: &Vec<f32>,
+    width: usize,
+    height: usize,
+    min_depth: f32,
+    max_depth: f32,
+) {
+    let mut depth_image_buffer = image::GrayImage::new(width as u32, height as u32);
+    for x in 0..width {
+        for y in 0..height {
+            let depth = depth_image[y * width + x];
+            let pixel = if depth.is_infinite() {
+                image::Luma([0u8])
+            } else {
+                let normalized_depth = (depth - min_depth) / (max_depth - min_depth);
+                image::Luma([(normalized_depth * 255.0) as u8])
+            };
+            depth_image_buffer.put_pixel(x as u32, y as u32, pixel);
+        }
+    }
+    let depth_image_rerun = rerun::DepthImage::try_from(depth_image_buffer).unwrap();
+    rec.log("depth", &depth_image_rerun).unwrap();
+}
+
 /// Main function to run the quadrotor simulation
 fn main() {
     let mut quad = Quadrotor::new();
     let mut controller = PIDController::new();
     let mut imu = Imu::new();
-    let rec = rerun::RecordingStreamBuilder::new("quadrotor_simulation")
+    let rec = rerun::RecordingStreamBuilder::new("Peng")
         .connect()
         .unwrap();
 
+    let upper_bounds = Vector3::new(3.0, 2.0, 2.0);
+    let lower_bounds = Vector3::new(-3.0, -2.0, 0.0);
+    let mut maze = Maze::new(lower_bounds, upper_bounds, 20);
+    let camera = Camera::new((128, 96), 90.0_f32.to_radians(), 0.1, 5.0);
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
-    let bounds = Vector3::new(2.0, 2.0, 2.0);
-    let mut obstacles = generate_random_obstacles(10, bounds);
     let mut trajectory = Trajectory {
         points: vec![Vector3::new(0.0, 0.0, 0.0)],
     };
     rec.set_time_seconds("timestamp", 0);
     log_mesh(&rec, 5, 0.5);
+    log_maze_tube(&rec, &maze);
+    log_maze_obstacles(&rec, &maze);
     let mut i = 0;
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);
-        update_obstacles(&mut obstacles, &bounds, quad.time_step);
-        update_planner(&mut planner_manager, i, time, &quad, &obstacles);
+        maze.update_obstacles(quad.time_step);
+        update_planner(&mut planner_manager, i, time, &quad, &maze.obstacles);
         let (desired_position, desired_velocity, desired_yaw) = planner_manager.update(
             quad.position,
             quad.orientation,
             quad.velocity,
             time,
-            &obstacles,
+            &maze.obstacles,
         );
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
@@ -1271,9 +1469,6 @@ fn main() {
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
         if i % 5 == 0 {
             trajectory.points.push(quad.position);
-            if i >= 7000 && i < 9000 {
-                log_obstacles(&rec, &obstacles);
-            }
             log_trajectory(&rec, &trajectory);
             log_data(
                 &rec,
@@ -1282,6 +1477,16 @@ fn main() {
                 &_measured_accel,
                 &_measured_gyro,
             );
+            let depth_image = camera.render_depth(&quad.position, &quad.orientation, &maze);
+            log_depth_image(
+                &rec,
+                &depth_image,
+                camera.resolution.0,
+                camera.resolution.1,
+                camera.near,
+                camera.far,
+            );
+            log_maze_obstacles(&rec, &maze);
         }
         i += 1;
         if i >= 9000 {
