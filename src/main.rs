@@ -1074,14 +1074,14 @@ fn log_data(
     measured_gyro: &Vector3<f32>,
 ) {
     rec.log(
-        "quadrotor/desired_position",
+        "world/quad/desired_position",
         &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)])
             .with_radii([0.1])
             .with_colors([rerun::Color::from_rgb(255, 255, 255)]),
     )
     .unwrap();
     rec.log(
-        "quadrotor/current_position",
+        "world/quad/base_link",
         &rerun::Transform3D::from_translation_rotation(
             rerun::Vec3D::new(quad.position.x, quad.position.y, quad.position.z),
             rerun::Quaternion::from_xyzw([
@@ -1163,7 +1163,7 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
         .collect();
     let line_radius = 0.05;
     rec.log(
-        "maze/tube",
+        "world/maze/tube",
         &rerun::LineStrips3D::new(line_strips)
             .with_colors([rerun::Color::from_rgb(128, 128, 255)])
             .with_radii([line_radius]),
@@ -1190,7 +1190,7 @@ fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
         })
         .unzip();
     rec.log(
-        "maze/obstacles",
+        "world/maze/obstacles",
         &rerun::Points3D::new(positions)
             .with_radii(radii)
             .with_colors([rerun::Color::from_rgb(255, 128, 128)]),
@@ -1237,7 +1237,7 @@ fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
         .map(|p| (p.x, p.y, p.z))
         .collect::<Vec<_>>();
     rec.log(
-        "quadrotor/path",
+        "world/quad/path",
         &rerun::LineStrips3D::new([path]).with_colors([rerun::Color::from_rgb(0, 255, 255)]),
     )
     .unwrap();
@@ -1270,7 +1270,7 @@ fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
     let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
         horizontal_lines.into_iter().chain(vertical_lines).collect();
     rec.log(
-        "maze/mesh",
+        "world/mesh",
         &rerun::LineStrips3D::new(line_strips)
             .with_colors([rerun::Color::from_rgb(255, 255, 255)])
             .with_radii([0.02]),
@@ -1304,7 +1304,7 @@ fn log_depth_image(
             }
         });
     let depth_image_rerun = rerun::DepthImage::try_from(depth_image_buffer).unwrap();
-    rec.log("depth", &depth_image_rerun).unwrap();
+    rec.log("world/quad/cam/depth", &depth_image_rerun).unwrap();
 }
 /// Main function to run the quadrotor simulation
 fn main() {
