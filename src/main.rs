@@ -1107,7 +1107,7 @@ impl Camera {
     /// If the intersection is outside the near and far clipping planes, it is ignored
     /// # Arguments
     /// * `origin` - The origin of the ray
-    /// * `direction` - The direction of the ray
+    /// * `direction` - The direction of the ray, should be normalized
     /// * `center` - The center of the sphere
     /// * `radius` - The radius of the sphere
     /// # Returns
@@ -1120,15 +1120,13 @@ impl Camera {
         radius: f32,
     ) -> Option<f32> {
         let oc = origin - center;
-        let a = direction.dot(direction);
-        let b = 2.0 * oc.dot(direction);
+        let b = oc.dot(direction);
         let c = oc.dot(&oc) - radius * radius;
-        let discriminant = b * b - 4.0 * a * c;
-
+        let discriminant = b * b - c;
         if discriminant < 0.0 {
             None
         } else {
-            let t = (-b - discriminant.sqrt()) / (2.0 * a);
+            let t = -b - discriminant.sqrt();
             if t > self.near && t < self.far {
                 Some(t)
             } else {
