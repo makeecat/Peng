@@ -950,6 +950,7 @@ struct Camera {
     far: f32,
     tan_half_fov: f32,
     aspect_ratio: f32,
+    ray_directions: Vec<Vector3<f32>>,
 }
 
 impl Camera {
@@ -960,13 +961,25 @@ impl Camera {
     /// * `near` - The near clipping plane of the camera
     /// * `far` - The far clipping plane of the camera
     fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
-        Camera {
+        let (width, height) = resolution;
+        let aspect_ratio = width as f32 / height as f32;
+        let tan_half_fov = (fov / 2.0).tan();
+        let mut ray_directions = Vec::with_capacity(width * height);
+        for y in 0..height {
+            for x in 0..width {
+                let x_ndc = (2.0 * x as f32 / width as f32 - 1.0) * aspect_ratio * tan_half_fov;
+                let y_ndc = (1.0 - 2.0 * y as f32 / height as f32) * tan_half_fov;
+                ray_directions.push(Vector3::new(1.0, x_ndc, y_ndc).normalize());
+            }
+        }
+        Self {
             resolution,
             fov,
             near,
             far,
-            tan_half_fov: (fov / 2.0).tan(),
-            aspect_ratio: resolution.0 as f32 / resolution.1 as f32,
+            tan_half_fov,
+            aspect_ratio,
+            ray_directions,
         }
     }
     /// Renders the depth of the scene from the perspective of the quadrotor
@@ -987,11 +1000,7 @@ impl Camera {
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         (0..width * height)
             .map(|i| {
-                let x = (2.0 * (i % width) as f32 / width as f32 - 1.0)
-                    * self.aspect_ratio
-                    * self.tan_half_fov;
-                let y = (1.0 - 2.0 * (i / width) as f32 / height as f32) * self.tan_half_fov;
-                let ray_dir = camera_to_world * Vector3::new(1.0, x, y).normalize();
+                let ray_dir = camera_to_world * self.ray_directions[i];
                 self.ray_cast(quad_position, &ray_dir, maze)
                     .unwrap_or(std::f32::INFINITY)
             })
@@ -1011,6 +1020,14 @@ impl Camera {
         maze: &Maze,
     ) -> Option<f32> {
         let mut closest_hit = self.far;
+        // Check wall intersections
+        if let Some(wall_hit) =
+            self.ray_tube_intersection(origin, direction, &maze.lower_bounds, &maze.upper_bounds)
+        {
+            if wall_hit < closest_hit {
+                closest_hit = wall_hit;
+            }
+        }
         // Check obstacle intersections
         for obstacle in &maze.obstacles {
             if let Some(obstacle_hit) =
@@ -1056,6 +1073,40 @@ impl Camera {
             } else {
                 None
             }
+        }
+    }
+    fn ray_tube_intersection(
+        &self,
+        origin: &Vector3<f32>,
+        direction: &Vector3<f32>,
+        lower_bounds: &Vector3<f32>,
+        upper_bounds: &Vector3<f32>,
+    ) -> Option<f32> {
+        let mut closest_hit = f32::INFINITY;
+
+        // Check intersection with each wall
+        for axis in 0..3 {
+            if direction[axis].abs() > f32::EPSILON {
+                for &bound in &[lower_bounds[axis], upper_bounds[axis]] {
+                    let t = (bound - origin[axis]) / direction[axis];
+                    if t > self.near && t < self.far {
+                        let intersection_point = origin + direction * t;
+                        if (0..3).all(|i| {
+                            i == axis
+                                || (intersection_point[i] >= lower_bounds[i]
+                                    && intersection_point[i] <= upper_bounds[i])
+                        }) {
+                            closest_hit = closest_hit.min(t);
+                        }
+                    }
+                }
+            }
+        }
+
+        if closest_hit < f32::INFINITY {
+            Some(closest_hit)
+        } else {
+            None
         }
     }
 }
