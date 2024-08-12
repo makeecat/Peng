@@ -1,41 +1,13 @@
 //! # Quadrotor Simulation
-//!
 //! This crate provides a comprehensive simulation environment for quadrotor drones.
 //! It includes models for quadrotor dynamics, IMU simulation, various trajectory planners,
 //! and a PID controller for position and attitude control.
-//!
 //! ## Features
-//!
 //! - Realistic quadrotor dynamics simulation
 //! - IMU sensor simulation with configurable noise parameters
 //! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
 //! - PID controller for position and attitude control
 //! - Integration with the `rerun` crate for visualization
-//!
-//! ## Usage
-//!
-//! To use this crate in your project, add the following to your `Cargo.toml`:
-//!
-//! ```toml
-//! [dependencies]
-//! quadrotor_sim = "0.1.0"
-//! ```
-//!
-//! Then, you can use the crate in your Rust code:
-//!
-//! ```rust
-//! use quadrotor_sim::{Quadrotor, PIDController, PlannerManager};
-//!
-//! fn main() {
-//!     let mut quad = Quadrotor::new();
-//!     let controller = PIDController::new();
-//!     let planner = PlannerManager::new(quad.position, 0.0);
-//!
-//!     // Simulation loop
-//!     // ...
-//! }
-//! ```
-//!
 use nalgebra::{Matrix3, Rotation3, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 /// Represents a quadrotor with its physical properties and state
@@ -105,15 +77,12 @@ impl Quadrotor {
         let thrust_body = Vector3::new(0.0, 0.0, control_thrust);
         let thrust_world = self.orientation * thrust_body;
         let total_force = thrust_world + gravity_force + drag_force;
-
         let acceleration = total_force / self.mass;
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
-
         let inertia_angular_velocity = self.inertia_matrix * self.angular_velocity;
         let gyroscopic_torque = self.angular_velocity.cross(&inertia_angular_velocity);
         let angular_acceleration = self.inertia_matrix_inv * (control_torque - gyroscopic_torque);
-
         self.angular_velocity += angular_acceleration * self.time_step;
         self.orientation *=
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
@@ -125,7 +94,6 @@ impl Quadrotor {
         let accel_noise = Normal::new(0.0, 0.02).unwrap();
         let gyro_noise = Normal::new(0.0, 0.01).unwrap();
         let mut rng = rand::thread_rng();
-
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let specific_force =
             self.orientation.inverse() * (self.velocity / self.time_step - gravity_world);
@@ -193,7 +161,6 @@ impl Imu {
         let mut rng = rand::thread_rng();
         let accel_noise = Normal::new(0.0, self.accel_noise_std).unwrap();
         let gyro_noise = Normal::new(0.0, self.gyro_noise_std).unwrap();
-
         let measured_acceleration = true_acceleration
             + self.accel_bias
             + Vector3::new(
@@ -237,11 +204,6 @@ struct PIDController {
 
 impl PIDController {
     /// Creates a new PIDController with default gains
-    /// # Examples
-    /// ```
-    /// let controller = PIDController::new();
-    /// assert_eq!(controller.kp_pos, Vector3::new(7.1, 7.1, 11.9));
-    /// ```
     fn new() -> Self {
         Self {
             kp_pos: Vector3::new(7.1, 7.1, 11.9),
@@ -274,16 +236,13 @@ impl PIDController {
         let error_orientation = current_orientation.inverse() * desired_orientation;
         let (roll_error, pitch_error, yaw_error) = error_orientation.euler_angles();
         let error_angles = Vector3::new(roll_error, pitch_error, yaw_error);
-
         self.integral_att_error += error_angles * dt;
         self.integral_att_error
             .component_mul_assign(&self.max_integral_att.map(|x| x.signum()));
         self.integral_att_error = self
             .integral_att_error
             .zip_map(&self.max_integral_att, |int, max| int.clamp(-max, max));
-
         let error_angular_velocity = -current_angular_velocity;
-
         self.kp_att.component_mul(&error_angles)
             + self.kd_att.component_mul(&error_angular_velocity)
             + self.ki_att.component_mul(&self.integral_att_error)
@@ -313,7 +272,6 @@ impl PIDController {
     ) -> (f32, UnitQuaternion<f32>) {
         let error_position = desired_position - current_position;
         let error_velocity = desired_velocity - current_velocity;
-
         self.integral_pos_error += error_position * dt;
         self.integral_pos_error = self
             .integral_pos_error
@@ -321,14 +279,11 @@ impl PIDController {
         self.integral_pos_error = self
             .integral_pos_error
             .zip_map(&self.max_integral_pos, |int, max| int.clamp(-max, max));
-
         let acceleration = self.kp_pos.component_mul(&error_position)
             + self.kd_pos.component_mul(&error_velocity)
             + self.ki_pos.component_mul(&self.integral_pos_error);
-
         let gravity_compensation = Vector3::new(0.0, 0.0, gravity);
         let total_acceleration = acceleration + gravity_compensation;
-
         let thrust = mass * total_acceleration.norm();
         let desired_orientation = if total_acceleration.norm() > 1e-6 {
             let z_body = total_acceleration.normalize();
@@ -471,14 +426,11 @@ impl Planner for MinimumJerkLinePlanner {
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = (time - self.start_time) / self.duration;
         let t = t.clamp(0.0, 1.0);
-
         let s = 10.0 * t.powi(3) - 15.0 * t.powi(4) + 6.0 * t.powi(5);
         let s_dot = (30.0 * t.powi(2) - 60.0 * t.powi(3) + 30.0 * t.powi(4)) / self.duration;
-
         let position = self.start_position + (self.end_position - self.start_position) * s;
         let velocity = (self.end_position - self.start_position) * s_dot;
         let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * s;
-
         (position, velocity, yaw)
     }
 
@@ -520,14 +472,12 @@ impl Planner for LissajousPlanner {
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = (time - self.start_time) / self.duration;
         let t = t.clamp(0.0, 1.0);
-
         let smooth_start = if t < self.ramp_time / self.duration {
             let t_ramp = t / (self.ramp_time / self.duration);
             t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
         } else {
             1.0
         };
-
         let velocity_ramp = if t < self.ramp_time / self.duration {
             smooth_start
         } else if t > 1.0 - self.ramp_time / self.duration {
@@ -536,7 +486,6 @@ impl Planner for LissajousPlanner {
         } else {
             1.0
         };
-
         let lissajous = Vector3::new(
             self.amplitude.x
                 * (self.frequency.x * t * 2.0 * std::f32::consts::PI + self.phase.x).sin(),
@@ -545,10 +494,8 @@ impl Planner for LissajousPlanner {
             self.amplitude.z
                 * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).sin(),
         );
-
         let position =
             self.start_position + smooth_start * ((self.center + lissajous) - self.start_position);
-
         let mut velocity = Vector3::new(
             self.amplitude.x
                 * self.frequency.x
@@ -567,14 +514,12 @@ impl Planner for LissajousPlanner {
                 * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).cos(),
         ) * velocity_ramp
             / self.duration;
-
         if t < self.ramp_time / self.duration {
             let transition_velocity = (self.center - self.start_position)
                 * (2.0 * t / self.ramp_time - 2.0 * t * t / (self.ramp_time * self.ramp_time))
                 / self.duration;
             velocity += transition_velocity;
         }
-
         let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
         (position, velocity, yaw)
     }
@@ -614,14 +559,12 @@ impl Planner for CirclePlanner {
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = (time - self.start_time) / self.duration;
         let t = t.clamp(0.0, 1.0);
-
         let smooth_start = if t < self.ramp_time / self.duration {
             let t_ramp = t / (self.ramp_time / self.duration);
             t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
         } else {
             1.0
         };
-
         let velocity_ramp = if t < self.ramp_time / self.duration {
             smooth_start
         } else if t > 1.0 - self.ramp_time / self.duration {
@@ -630,19 +573,15 @@ impl Planner for CirclePlanner {
         } else {
             1.0
         };
-
         let angle = self.angular_velocity * t * self.duration;
         let circle_offset = Vector3::new(self.radius * angle.cos(), self.radius * angle.sin(), 0.0);
-
         let position = self.start_position
             + smooth_start * ((self.center + circle_offset) - self.start_position);
-
         let tangential_velocity = Vector3::new(
             -self.radius * self.angular_velocity * angle.sin(),
             self.radius * self.angular_velocity * angle.cos(),
             0.0,
         );
-
         let velocity = tangential_velocity * velocity_ramp;
         let yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
         (position, velocity, yaw)
@@ -741,8 +680,7 @@ impl PlannerManager {
             .plan(current_position, current_velocity, time)
     }
 }
-/// Obstacle avoidance planner
-/// This planner uses a potential field approach to avoid obstacles
+/// Obstacle avoidance planner that uses a potential field approach to avoid obstacles
 /// The planner calculates a repulsive force for each obstacle and an attractive force towards the goal
 /// The resulting force is then used to calculate the desired position and velocity
 struct ObstacleAvoidancePlanner {
@@ -934,8 +872,6 @@ impl Obstacle {
     }
 }
 /// Represents a maze in the simulation
-/// The maze is represented as a set of obstacles
-/// that the quadrotor must avoid
 /// # Fields
 /// * `lower_bounds` - The lower bounds of the maze
 /// * `upper_bounds` - The upper bounds of the maze
@@ -947,7 +883,6 @@ struct Maze {
 }
 impl Maze {
     /// Creates a new maze with the given bounds and number of obstacles
-    /// The obstacles are randomly generated within the bounds
     /// # Arguments
     /// * `lower_bounds` - The lower bounds of the maze
     /// * `upper_bounds` - The upper bounds of the maze
@@ -983,9 +918,7 @@ impl Maze {
             })
             .collect();
     }
-    /// Updates the obstacles in the maze
-    /// The obstacles are moved according to their velocities
-    /// If an obstacle hits a boundary, it bounces off
+    /// Updates the obstacles in the maze, if an obstacle hits a boundary, it bounces off
     /// # Arguments
     /// * `dt` - The time step
     fn update_obstacles(&mut self, dt: f32) {
@@ -1001,10 +934,7 @@ impl Maze {
         });
     }
 }
-/// Represents a camera in the simulation
-/// The camera is used to render the depth of the scene
-/// from the perspective of the quadrotor
-/// The depth is used by the obstacle avoidance planner
+/// Represents a camera in the simulation which is used to render the depth of the scene
 /// # Fields
 /// * `resolution` - The resolution of the camera
 /// * `fov` - The field of view of the camera
@@ -1081,7 +1011,6 @@ impl Camera {
         maze: &Maze,
     ) -> Option<f32> {
         let mut closest_hit = self.far;
-
         // Check obstacle intersections
         for obstacle in &maze.obstacles {
             if let Some(obstacle_hit) =
@@ -1092,18 +1021,13 @@ impl Camera {
                 }
             }
         }
-
         if closest_hit < self.far {
             Some(closest_hit)
         } else {
             None
         }
     }
-    /// Checks if a ray intersects a sphere
-    /// The ray is defined by an origin and a direction
-    /// The sphere is defined by a center and a radius
-    /// The intersection is computed using the quadratic formula
-    /// If the discriminant is negative, the ray does not intersect the sphere
+    /// Checks if a ray intersects a sphere, and if so, returns the distance to the intersection point
     /// If the intersection is outside the near and far clipping planes, it is ignored
     /// # Arguments
     /// * `origin` - The origin of the ray
@@ -1192,8 +1116,6 @@ fn log_data(
     }
 }
 /// Log the maze tube to the rerun recording stream
-/// The tube is defined by the lower and upper bounds of the maze
-/// The tube is visualized as a wireframe cube
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
@@ -1249,7 +1171,6 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
     .unwrap();
 }
 /// Log the maze obstacles to the rerun recording stream
-/// The obstacles are visualized as spheres
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
@@ -1268,7 +1189,6 @@ fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
             )
         })
         .unzip();
-
     rec.log(
         "maze/obstacles",
         &rerun::Points3D::new(positions)
@@ -1296,8 +1216,7 @@ impl Trajectory {
             min_distance_threadhold: 0.1,
         }
     }
-    /// Add a point to the trajectory
-    /// The point is only added if it is further than the minimum distance threshold
+    /// Add a point to the trajectory if it is further than the minimum distance threshold
     /// # Arguments
     /// * `point` - The point to add
     fn add_point(&mut self, point: Vector3<f32>) {
