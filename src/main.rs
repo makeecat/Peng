@@ -1325,8 +1325,32 @@ fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
 /// A struct to hold trajectory data
 /// # Fields
 /// * `points` - A vector of 3D points
+/// * `last_logged_point` - The last point that was logged
+/// * `min_distance_threadhold` - The minimum distance between points to log
 struct Trajectory {
     points: Vec<Vector3<f32>>,
+    last_logged_point: Vector3<f32>,
+    min_distance_threadhold: f32,
+}
+
+impl Trajectory {
+    fn new(initial_point: Vector3<f32>) -> Self {
+        Self {
+            points: vec![initial_point],
+            last_logged_point: initial_point,
+            min_distance_threadhold: 0.1,
+        }
+    }
+    /// Add a point to the trajectory
+    /// The point is only added if it is further than the minimum distance threshold
+    /// # Arguments
+    /// * `point` - The point to add
+    fn add_point(&mut self, point: Vector3<f32>) {
+        if (point - self.last_logged_point).norm() > self.min_distance_threadhold {
+            self.points.push(point);
+            self.last_logged_point = point;
+        }
+    }
 }
 
 /// log trajectory data to the rerun recording stream
@@ -1427,9 +1451,7 @@ fn main() {
     let mut maze = Maze::new(lower_bounds, upper_bounds, 20);
     let camera = Camera::new((128, 96), 90.0_f32.to_radians(), 0.1, 5.0);
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
-    let mut trajectory = Trajectory {
-        points: vec![Vector3::new(0.0, 0.0, 0.0)],
-    };
+    let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     rec.set_time_seconds("timestamp", 0);
     log_mesh(&rec, 5, 0.5);
     log_maze_tube(&rec, &maze);
@@ -1468,7 +1490,7 @@ fn main() {
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
         if i % 5 == 0 {
-            trajectory.points.push(quad.position);
+            trajectory.add_point(quad.position);
             log_trajectory(&rec, &trajectory);
             log_data(
                 &rec,
