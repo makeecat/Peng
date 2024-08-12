@@ -64,13 +64,6 @@ struct Quadrotor {
 
 impl Quadrotor {
     /// Creates a new Quadrotor with default parameters
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let quad = Quadrotor::new();
-    /// assert_eq!(quad.mass, 1.3);
-    /// ```
     pub fn new() -> Self {
         let inertia_matrix = Matrix3::new(
             0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995,
@@ -98,18 +91,10 @@ impl Quadrotor {
         self.orientation *=
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
-
     /// Updates the quadrotor's dynamics with control inputs
     /// # Arguments
     /// * `control_thrust` - The total thrust force applied to the quadrotor
     /// * `control_torque` - The 3D torque vector applied to the quadrotor
-    /// # Examples
-    /// ```
-    /// let mut quad = Quadrotor::new();
-    /// let thrust = 10.0;
-    /// let torque = Vector3::new(0.1, 0.1, 0.1);
-    /// quad.update_dynamics_with_controls(thrust, &torque);
-    /// ```
     pub fn update_dynamics_with_controls(
         &mut self,
         control_thrust: f32,
@@ -133,7 +118,6 @@ impl Quadrotor {
         self.orientation *=
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
-
     /// Simulates IMU readings with added noise
     /// # Returns
     /// A tuple containing the measured acceleration and angular velocity
@@ -160,7 +144,6 @@ impl Quadrotor {
         (measured_acceleration, measured_angular_velocity)
     }
 }
-
 /// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
 struct Imu {
     /// Accelerometer bias
@@ -186,7 +169,6 @@ impl Imu {
             bias_instability: 0.0001,
         }
     }
-
     /// Updates the IMU biases over time
     /// # Arguments
     /// * `dt` - Time step for the update
@@ -197,7 +179,6 @@ impl Imu {
         self.accel_bias += drift_vector();
         self.gyro_bias += drift_vector();
     }
-
     /// Simulates IMU readings with added bias and noise
     /// # Arguments
     /// * `true_acceleration` - The true acceleration vector
@@ -230,7 +211,6 @@ impl Imu {
         (measured_acceleration, measured_angular_velocity)
     }
 }
-
 /// PID controller for quadrotor position and attitude control
 struct PIDController {
     /// Proportional gain for position control
@@ -276,7 +256,6 @@ impl PIDController {
             max_integral_att: Vector3::new(1.0, 1.0, 1.0),
         }
     }
-
     /// Computes attitude control torques
     /// # Arguments
     /// * `desired_orientation` - The desired orientation quaternion
@@ -309,7 +288,6 @@ impl PIDController {
             + self.kd_att.component_mul(&error_angular_velocity)
             + self.ki_att.component_mul(&self.integral_att_error)
     }
-
     /// Computes position control thrust and desired orientation
     /// # Arguments
     /// * `desired_position` - The desired position
@@ -422,7 +400,6 @@ impl PlannerType {
         }
     }
 }
-
 /// Trait defining the interface for trajectory planners
 trait Planner {
     /// Plans the trajectory based on the current state and time
@@ -706,7 +683,6 @@ impl Planner for LandingPlanner {
         current_position.z < 0.05 || time >= self.start_time + self.duration
     }
 }
-
 /// Manages different trajectory planners and switches between them
 struct PlannerManager {
     /// The currently active planner
@@ -798,10 +774,8 @@ impl Planner for ObstacleAvoidancePlanner {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
-
         // Attractive force towards the goal
         let f_att = self.k_att * (self.target_position - current_position);
-
         // Repulsive force from obstacles
         let mut f_rep = Vector3::zeros();
         for obstacle in &self.obstacles {
@@ -814,20 +788,15 @@ impl Planner for ObstacleAvoidancePlanner {
                     * diff.normalize();
             }
         }
-
         // Total force
         let f_total = f_att + f_rep;
-
         // Desired velocity (capped at a maximum speed)
         let max_speed: f32 = 1.0;
         let desired_velocity = f_total.normalize() * max_speed.min(f_total.norm());
-
         // Desired position (current position + desired velocity)
         let desired_position = current_position + desired_velocity * self.duration * (1.0 - t);
-
         // Interpolate yaw
         let desired_yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
-
         (desired_position, desired_velocity, desired_yaw)
     }
 
@@ -836,7 +805,6 @@ impl Planner for ObstacleAvoidancePlanner {
             && time >= self.start_time + self.duration
     }
 }
-
 /// Updates the planner based on the current simulation step
 /// # Arguments
 /// * `planner_manager` - The PlannerManager instance to update
@@ -972,7 +940,6 @@ impl Obstacle {
 /// * `lower_bounds` - The lower bounds of the maze
 /// * `upper_bounds` - The upper bounds of the maze
 /// * `obstacles` - The obstacles in the maze
-
 struct Maze {
     lower_bounds: Vector3<f32>,
     upper_bounds: Vector3<f32>,
@@ -1034,7 +1001,6 @@ impl Maze {
         });
     }
 }
-
 /// Represents a camera in the simulation
 /// The camera is used to render the depth of the scene
 /// from the perspective of the quadrotor
@@ -1207,7 +1173,6 @@ fn log_data(
     )
     .unwrap();
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
-
     for (name, value) in [
         ("position/x", quad.position.x),
         ("position/y", quad.position.y),
@@ -1247,7 +1212,6 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
         Vector3::new(upper_bounds.x, upper_bounds.y, upper_bounds.z),
         Vector3::new(lower_bounds.x, upper_bounds.y, upper_bounds.z),
     ];
-
     // Define the edges of the tube
     let edges = [
         (0, 1),
@@ -1263,7 +1227,6 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
         (2, 6),
         (3, 7),
     ];
-
     // Create line strips for the edges
     let line_strips: Vec<Vec<rerun::external::glam::Vec3>> = edges
         .iter()
@@ -1287,7 +1250,6 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
     )
     .unwrap();
 }
-
 /// Log the maze obstacles to the rerun recording stream
 /// The obstacles are visualized as spheres
 /// # Arguments
@@ -1347,7 +1309,6 @@ impl Trajectory {
         }
     }
 }
-
 /// log trajectory data to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
@@ -1428,7 +1389,6 @@ fn log_depth_image(
     let depth_image_rerun = rerun::DepthImage::try_from(depth_image_buffer).unwrap();
     rec.log("depth", &depth_image_rerun).unwrap();
 }
-
 /// Main function to run the quadrotor simulation
 fn main() {
     let mut quad = Quadrotor::new();
@@ -1437,7 +1397,6 @@ fn main() {
     let rec = rerun::RecordingStreamBuilder::new("Peng")
         .connect()
         .unwrap();
-
     let upper_bounds = Vector3::new(3.0, 2.0, 2.0);
     let lower_bounds = Vector3::new(-3.0, -2.0, 0.0);
     let mut maze = Maze::new(lower_bounds, upper_bounds, 20);
