@@ -1022,18 +1022,16 @@ impl Maze {
     /// # Arguments
     /// * `dt` - The time step
     fn update_obstacles(&mut self, dt: f32) {
-        for obstacle in self.obstacles.iter_mut() {
-            // Update position
+        self.obstacles.iter_mut().for_each(|obstacle| {
             obstacle.position += obstacle.velocity * dt;
-            // Bounce off boundaries
             for i in 0..3 {
                 if obstacle.position[i] - obstacle.radius < self.lower_bounds[i]
                     || obstacle.position[i] + obstacle.radius > self.upper_bounds[i]
                 {
-                    obstacle.velocity[i] = -obstacle.velocity[i];
+                    obstacle.velocity[i] *= -1.0;
                 }
             }
-        }
+        });
     }
 }
 
@@ -1296,23 +1294,20 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
 fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
-    let positions: Vec<(f32, f32, f32)> = maze
+    let (positions, radii): (Vec<_>, Vec<_>) = maze
         .obstacles
         .iter()
         .map(|obstacle| {
             (
-                obstacle.position.x,
-                obstacle.position.y,
-                obstacle.position.z,
+                (
+                    obstacle.position.x,
+                    obstacle.position.y,
+                    obstacle.position.z,
+                ),
+                obstacle.radius,
             )
         })
-        .collect();
-
-    let radii: Vec<f32> = maze
-        .obstacles
-        .iter()
-        .map(|obstacle| obstacle.radius)
-        .collect();
+        .unzip();
 
     rec.log(
         "maze/obstacles",
