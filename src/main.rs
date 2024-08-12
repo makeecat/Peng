@@ -993,7 +993,7 @@ impl Camera {
                 let y = (1.0 - 2.0 * (i / width) as f32 / height as f32) * self.tan_half_fov;
                 let ray_dir = camera_to_world * Vector3::new(1.0, x, y).normalize();
                 self.ray_cast(quad_position, &ray_dir, maze)
-                    .unwrap_or(self.far)
+                    .unwrap_or(std::f32::INFINITY)
             })
             .collect()
     }
@@ -1070,6 +1070,7 @@ fn log_data(
     rec: &rerun::RecordingStream,
     quad: &Quadrotor,
     desired_position: &Vector3<f32>,
+    desired_velocity: &Vector3<f32>,
     measured_accel: &Vector3<f32>,
     measured_gyro: &Vector3<f32>,
 ) {
@@ -1111,6 +1112,12 @@ fn log_data(
         ("gyro/x", measured_gyro.x),
         ("gyro/y", measured_gyro.y),
         ("gyro/z", measured_gyro.z),
+        ("desired_position/x", desired_position.x),
+        ("desired_position/y", desired_position.y),
+        ("desired_position/z", desired_position.z),
+        ("desired_velocity/x", desired_velocity.x),
+        ("desired_velocity/y", desired_velocity.y),
+        ("desired_velocity/z", desired_velocity.z),
     ] {
         rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
     }
@@ -1121,52 +1128,20 @@ fn log_data(
 /// * `maze` - The maze instance
 fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
     let (lower_bounds, upper_bounds) = (maze.lower_bounds, maze.upper_bounds);
-    // Define the corners of the tube
-    let corners = [
-        Vector3::new(lower_bounds.x, lower_bounds.y, lower_bounds.z),
-        Vector3::new(upper_bounds.x, lower_bounds.y, lower_bounds.z),
-        Vector3::new(upper_bounds.x, upper_bounds.y, lower_bounds.z),
-        Vector3::new(lower_bounds.x, upper_bounds.y, lower_bounds.z),
-        Vector3::new(lower_bounds.x, lower_bounds.y, upper_bounds.z),
-        Vector3::new(upper_bounds.x, lower_bounds.y, upper_bounds.z),
-        Vector3::new(upper_bounds.x, upper_bounds.y, upper_bounds.z),
-        Vector3::new(lower_bounds.x, upper_bounds.y, upper_bounds.z),
-    ];
-    // Define the edges of the tube
-    let edges = [
-        (0, 1),
-        (1, 2),
-        (2, 3),
-        (3, 0),
-        (4, 5),
-        (5, 6),
-        (6, 7),
-        (7, 4),
-        (0, 4),
-        (1, 5),
-        (2, 6),
-        (3, 7),
-    ];
-    // Create line strips for the edges
-    let line_strips: Vec<Vec<rerun::external::glam::Vec3>> = edges
-        .iter()
-        .map(|&(start, end)| {
-            vec![
-                rerun::external::glam::Vec3::new(
-                    corners[start].x,
-                    corners[start].y,
-                    corners[start].z,
-                ),
-                rerun::external::glam::Vec3::new(corners[end].x, corners[end].y, corners[end].z),
-            ]
-        })
-        .collect();
-    let line_radius = 0.05;
+    let center_position = rerun::external::glam::Vec3::new(
+        (lower_bounds.x + upper_bounds.x) / 2.0,
+        (lower_bounds.y + upper_bounds.y) / 2.0,
+        (lower_bounds.z + upper_bounds.z) / 2.0,
+    );
+    let half_sizes = rerun::external::glam::Vec3::new(
+        (upper_bounds.x - lower_bounds.x) / 2.0,
+        (upper_bounds.y - lower_bounds.y) / 2.0,
+        (upper_bounds.z - lower_bounds.z) / 2.0,
+    );
     rec.log(
         "world/maze/tube",
-        &rerun::LineStrips3D::new(line_strips)
-            .with_colors([rerun::Color::from_rgb(128, 128, 255)])
-            .with_radii([line_radius]),
+        &rerun::Boxes3D::from_centers_and_half_sizes([center_position], [half_sizes])
+            .with_colors([rerun::Color::from_rgb(128, 128, 255)]),
     )
     .unwrap();
 }
@@ -1213,16 +1188,21 @@ impl Trajectory {
         Self {
             points: vec![initial_point],
             last_logged_point: initial_point,
-            min_distance_threadhold: 0.1,
+            min_distance_threadhold: 0.05,
         }
     }
     /// Add a point to the trajectory if it is further than the minimum distance threshold
     /// # Arguments
     /// * `point` - The point to add
-    fn add_point(&mut self, point: Vector3<f32>) {
+    /// # Returns
+    /// * `true` if the point was added, `false` otherwise
+    fn add_point(&mut self, point: Vector3<f32>) -> bool {
         if (point - self.last_logged_point).norm() > self.min_distance_threadhold {
             self.points.push(point);
             self.last_logged_point = point;
+            true
+        } else {
+            false
         }
     }
 }
@@ -1321,7 +1301,7 @@ fn main() {
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     rec.set_time_seconds("timestamp", 0);
-    log_mesh(&rec, 5, 0.5);
+    log_mesh(&rec, 7, 0.5);
     log_maze_tube(&rec, &maze);
     log_maze_obstacles(&rec, &maze);
     let mut i = 0;
@@ -1358,12 +1338,14 @@ fn main() {
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
         if i % 5 == 0 {
-            trajectory.add_point(quad.position);
-            log_trajectory(&rec, &trajectory);
+            if trajectory.add_point(quad.position) {
+                log_trajectory(&rec, &trajectory);
+            }
             log_data(
                 &rec,
                 &quad,
                 &desired_position,
+                &desired_velocity,
                 &_measured_accel,
                 &_measured_gyro,
             );
