@@ -996,13 +996,17 @@ impl Camera {
         maze: &Maze,
     ) -> Vec<f32> {
         let (width, height) = self.resolution;
-        let camera_to_world = quad_orientation.to_rotation_matrix().matrix()
+        let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         (0..width * height)
             .map(|i| {
-                let ray_dir = camera_to_world * self.ray_directions[i];
-                self.ray_cast(quad_position, &ray_dir, maze)
-                    .unwrap_or(std::f32::INFINITY)
+                self.ray_cast(
+                    &quad_position,
+                    &rotation_camera_to_world.try_inverse().unwrap(),
+                    &(rotation_camera_to_world * self.ray_directions[i]),
+                    &maze,
+                )
+                .unwrap_or(std::f32::INFINITY)
             })
             .collect()
     }
@@ -1016,6 +1020,7 @@ impl Camera {
     fn ray_cast(
         &self,
         origin: &Vector3<f32>,
+        rotation_world_to_camera: &Matrix3<f32>,
         direction: &Vector3<f32>,
         maze: &Maze,
     ) -> Option<f32> {
@@ -1039,7 +1044,8 @@ impl Camera {
             }
         }
         if closest_hit < self.far {
-            Some(closest_hit)
+            let closest_pt = rotation_world_to_camera * direction * closest_hit;
+            Some(closest_pt.x)
         } else {
             None
         }
