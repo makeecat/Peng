@@ -999,21 +999,22 @@ impl Maze {
     /// * `num_obstacles` - The number of obstacles to generate
     fn generate_obstacles(&mut self, num_obstacles: usize) {
         let mut rng = rand::thread_rng();
-        for _ in 0..num_obstacles {
-            let position = Vector3::new(
-                rand::Rng::gen_range(&mut rng, self.lower_bounds.x..self.upper_bounds.x),
-                rand::Rng::gen_range(&mut rng, self.lower_bounds.y..self.upper_bounds.y),
-                rand::Rng::gen_range(&mut rng, self.lower_bounds.z..self.upper_bounds.z),
-            );
-            let velocity = Vector3::new(
-                rand::Rng::gen_range(&mut rng, -0.2..0.2),
-                rand::Rng::gen_range(&mut rng, -0.2..0.2),
-                rand::Rng::gen_range(&mut rng, -0.1..0.1),
-            );
-            let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
-            self.obstacles
-                .push(Obstacle::new(position, velocity, radius));
-        }
+        self.obstacles = (0..num_obstacles)
+            .map(|_| {
+                let position = Vector3::new(
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds.x..self.upper_bounds.x),
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds.y..self.upper_bounds.y),
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds.z..self.upper_bounds.z),
+                );
+                let velocity = Vector3::new(
+                    rand::Rng::gen_range(&mut rng, -0.2..0.2),
+                    rand::Rng::gen_range(&mut rng, -0.2..0.2),
+                    rand::Rng::gen_range(&mut rng, -0.1..0.1),
+                );
+                let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
+                Obstacle::new(position, velocity, radius)
+            })
+            .collect();
     }
     /// Updates the obstacles in the maze
     /// The obstacles are moved according to their velocities
@@ -1047,6 +1048,7 @@ impl Maze {
 /// * `far` - The far clipping plane of the camera
 /// * `tan_half_fov` - The tangent of half the field of view
 /// * `aspect_ratio` - The aspect ratio of the camera
+#[allow(dead_code)]
 struct Camera {
     resolution: (usize, usize),
     fov: f32,
@@ -1087,21 +1089,19 @@ impl Camera {
         maze: &Maze,
     ) -> Vec<f32> {
         let (width, height) = self.resolution;
-        let tan_half_fov = (self.fov / 2.0).tan();
         let camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
-        let mut depth_image = vec![self.far as f32; width * height];
-        for (i, depth) in depth_image.iter_mut().enumerate() {
-            let x = (2.0 * (i % width) as f32 / width as f32 - 1.0)
-                * self.aspect_ratio
-                * self.tan_half_fov;
-            let y = (1.0 - 2.0 * (i / width) as f32 / height as f32) * tan_half_fov;
-            let ray_dir = camera_to_world * Vector3::new(1.0, x, y).normalize();
-            if let Some(hit_distance) = self.ray_cast(quad_position, &ray_dir, maze) {
-                *depth = hit_distance as f32;
-            }
-        }
-        depth_image
+        (0..width * height)
+            .map(|i| {
+                let x = (2.0 * (i % width) as f32 / width as f32 - 1.0)
+                    * self.aspect_ratio
+                    * self.tan_half_fov;
+                let y = (1.0 - 2.0 * (i / width) as f32 / height as f32) * self.tan_half_fov;
+                let ray_dir = camera_to_world * Vector3::new(1.0, x, y).normalize();
+                self.ray_cast(quad_position, &ray_dir, maze)
+                    .unwrap_or(self.far)
+            })
+            .collect()
     }
     /// Casts a ray from the camera origin in the given direction
     /// # Arguments
@@ -1420,19 +1420,16 @@ fn log_depth_image(
     min_depth: f32,
     max_depth: f32,
 ) {
-    let mut depth_image_buffer = image::GrayImage::new(width as u32, height as u32);
-    for x in 0..width {
-        for y in 0..height {
-            let depth = depth_image[y * width + x];
-            let pixel = if depth.is_infinite() {
+    let depth_image_buffer: image::GrayImage =
+        image::ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
+            let depth = depth_image[y as usize * width + x as usize];
+            if depth.is_infinite() {
                 image::Luma([0u8])
             } else {
                 let normalized_depth = (depth - min_depth) / (max_depth - min_depth);
                 image::Luma([(normalized_depth * 255.0) as u8])
-            };
-            depth_image_buffer.put_pixel(x as u32, y as u32, pixel);
-        }
-    }
+            }
+        });
     let depth_image_rerun = rerun::DepthImage::try_from(depth_image_buffer).unwrap();
     rec.log("depth", &depth_image_rerun).unwrap();
 }
