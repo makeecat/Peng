@@ -987,28 +987,32 @@ impl Camera {
     /// * `quad_position` - The position of the quadrotor
     /// * `quad_orientation` - The orientation of the quadrotor
     /// * `maze` - The maze in the scene
-    /// # Returns
-    /// A vector of depth values representing the depth of the scene
+    /// * `depth_buffer` - The depth buffer to store the depth values
     fn render_depth(
         &self,
         quad_position: &Vector3<f32>,
         quad_orientation: &UnitQuaternion<f32>,
         maze: &Maze,
-    ) -> Vec<f32> {
+        depth_buffer: &mut Vec<f32>,
+    ) {
         let (width, height) = self.resolution;
+        let total_pixels = width * height;
+        depth_buffer.clear();
+        if depth_buffer.capacity() < total_pixels {
+            depth_buffer.reserve(total_pixels - depth_buffer.capacity());
+        }
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
-        (0..width * height)
-            .map(|i| {
-                self.ray_cast(
-                    &quad_position,
-                    &rotation_camera_to_world.try_inverse().unwrap(),
-                    &(rotation_camera_to_world * self.ray_directions[i]),
-                    &maze,
-                )
-                .unwrap_or(std::f32::INFINITY)
-            })
-            .collect()
+        let rotation_world_to_camera = rotation_camera_to_world.transpose();
+        depth_buffer.extend((0..total_pixels).map(|i| {
+            self.ray_cast(
+                quad_position,
+                &rotation_world_to_camera,
+                &(rotation_camera_to_world * self.ray_directions[i]),
+                maze,
+            )
+            .unwrap_or(std::f32::INFINITY)
+        }));
     }
     /// Casts a ray from the camera origin in the given direction
     /// # Arguments
@@ -1357,6 +1361,7 @@ fn main() {
     let camera = Camera::new((128, 96), 90.0_f32.to_radians(), 0.1, 5.0);
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
+    let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
     rec.set_time_seconds("timestamp", 0);
     log_mesh(&rec, 7, 0.5);
     log_maze_tube(&rec, &maze);
@@ -1406,10 +1411,10 @@ fn main() {
                 &_measured_accel,
                 &_measured_gyro,
             );
-            let depth_image = camera.render_depth(&quad.position, &quad.orientation, &maze);
+            camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer);
             log_depth_image(
                 &rec,
-                &depth_image,
+                &depth_buffer,
                 camera.resolution.0,
                 camera.resolution.1,
                 camera.near,
