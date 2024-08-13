@@ -1017,6 +1017,7 @@ impl Camera {
     /// Casts a ray from the camera origin in the given direction
     /// # Arguments
     /// * `origin` - The origin of the ray
+    /// * `rotation_world_to_camera` - The rotation matrix from world to camera coordinates
     /// * `direction` - The direction of the ray
     /// * `maze` - The maze in the scene
     /// # Returns
@@ -1029,92 +1030,44 @@ impl Camera {
         maze: &Maze,
     ) -> Option<f32> {
         let mut closest_hit = self.far;
-        // Check wall intersections
-        if let Some(wall_hit) =
-            self.ray_tube_intersection(origin, direction, &maze.lower_bounds, &maze.upper_bounds)
-        {
-            if wall_hit < closest_hit {
-                closest_hit = wall_hit;
+        // Inline tube intersection
+        for axis in 0..3 {
+            if direction[axis].abs() > f32::EPSILON {
+                for &bound in &[maze.lower_bounds[axis], maze.upper_bounds[axis]] {
+                    let t = (bound - origin[axis]) / direction[axis];
+                    if t > self.near && t < closest_hit {
+                        let intersection_point = origin + direction * t;
+                        if (0..3).all(|i| {
+                            i == axis
+                                || (intersection_point[i] >= maze.lower_bounds[i]
+                                    && intersection_point[i] <= maze.upper_bounds[i])
+                        }) {
+                            closest_hit = t;
+                        }
+                    }
+                }
             }
         }
-        // Check obstacle intersections
+        // Early exit if we've hit a wall closer than any possible obstacle
+        if closest_hit <= self.near {
+            return None;
+        }
+        // Inline sphere intersection
         for obstacle in &maze.obstacles {
-            if let Some(obstacle_hit) =
-                self.ray_sphere_intersection(origin, direction, &obstacle.position, obstacle.radius)
-            {
-                if obstacle_hit < closest_hit {
-                    closest_hit = obstacle_hit;
+            let oc = origin - &obstacle.position;
+            let b = oc.dot(direction);
+            let c = oc.dot(&oc) - obstacle.radius * obstacle.radius;
+            let discriminant = b * b - c;
+            if discriminant >= 0.0 {
+                let t = -b - discriminant.sqrt();
+                if t > self.near && t < closest_hit {
+                    closest_hit = t;
                 }
             }
         }
         if closest_hit < self.far {
             let closest_pt = rotation_world_to_camera * direction * closest_hit;
             Some(closest_pt.x)
-        } else {
-            None
-        }
-    }
-    /// Checks if a ray intersects a sphere, and if so, returns the distance to the intersection point
-    /// If the intersection is outside the near and far clipping planes, it is ignored
-    /// # Arguments
-    /// * `origin` - The origin of the ray
-    /// * `direction` - The direction of the ray, should be normalized
-    /// * `center` - The center of the sphere
-    /// * `radius` - The radius of the sphere
-    /// # Returns
-    /// The distance to the intersection point if it exists and is within the clipping planes
-    fn ray_sphere_intersection(
-        &self,
-        origin: &Vector3<f32>,
-        direction: &Vector3<f32>,
-        center: &Vector3<f32>,
-        radius: f32,
-    ) -> Option<f32> {
-        let oc = origin - center;
-        let b = oc.dot(direction);
-        let c = oc.dot(&oc) - radius * radius;
-        let discriminant = b * b - c;
-        if discriminant < 0.0 {
-            None
-        } else {
-            let t = -b - discriminant.sqrt();
-            if t > self.near && t < self.far {
-                Some(t)
-            } else {
-                None
-            }
-        }
-    }
-    fn ray_tube_intersection(
-        &self,
-        origin: &Vector3<f32>,
-        direction: &Vector3<f32>,
-        lower_bounds: &Vector3<f32>,
-        upper_bounds: &Vector3<f32>,
-    ) -> Option<f32> {
-        let mut closest_hit = f32::INFINITY;
-
-        // Check intersection with each wall
-        for axis in 0..3 {
-            if direction[axis].abs() > f32::EPSILON {
-                for &bound in &[lower_bounds[axis], upper_bounds[axis]] {
-                    let t = (bound - origin[axis]) / direction[axis];
-                    if t > self.near && t < self.far {
-                        let intersection_point = origin + direction * t;
-                        if (0..3).all(|i| {
-                            i == axis
-                                || (intersection_point[i] >= lower_bounds[i]
-                                    && intersection_point[i] <= upper_bounds[i])
-                        }) {
-                            closest_hit = closest_hit.min(t);
-                        }
-                    }
-                }
-            }
-        }
-
-        if closest_hit < f32::INFINITY {
-            Some(closest_hit)
         } else {
             None
         }
