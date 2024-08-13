@@ -1,7 +1,7 @@
 # [![Peng](assets/Peng.svg)](https://github.com/makeecat/Peng)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/makeecat/Peng#license)
 [![Docs](https://github.com/makeecat/Peng/actions/workflows/docs.yml/badge.svg)](https://makeecat.github.io/Peng/)
-[![CI](https://github.com/makeecat/Peng/actions/workflows/CI.yml/badge.svg)](https://github.com/makeecat/Peng/actions/workflows/CI)
+[![CI](https://github.com/makeecat/Peng/actions/workflows/CI.yml/badge.svg)](https://github.com/makeecat/Peng/actions/workflows/CI.yml)
 ## What is Peng
 Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
 ![demo](assets/Peng_demo.gif)
