@@ -15,6 +15,8 @@ terminal 2
 ```
 cargo run --release
 ```
+Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
+
 ## Overview
 
 ### Quadrotor Simulator
