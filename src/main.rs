@@ -36,7 +36,9 @@ struct Quadrotor {
 
 impl Quadrotor {
     /// Creates a new Quadrotor with default parameters
-    pub fn new() -> Self {
+    /// * Arguments
+    /// * `time_step` - The simulation time step in seconds
+    pub fn new(time_step: f32) -> Self {
         let inertia_matrix = Matrix3::new(
             0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995,
         );
@@ -47,21 +49,12 @@ impl Quadrotor {
             angular_velocity: Vector3::zeros(),
             mass: 1.3,
             gravity: 9.81,
-            time_step: 0.01,
+            time_step,
             // thrust_coefficient: 0.0,
             drag_coefficient: 0.000,
             inertia_matrix,
             inertia_matrix_inv: inertia_matrix.try_inverse().unwrap(),
         }
-    }
-    #[allow(dead_code)]
-    pub fn update_dynamics(&mut self) {
-        // Update position and velocity based on current state and simple physics
-        let acceleration = Vector3::new(0.0, 0.0, -self.gravity);
-        self.velocity += acceleration * self.time_step;
-        self.position += self.velocity * self.time_step;
-        self.orientation *=
-            UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
     }
     /// Updates the quadrotor's dynamics with control inputs
     /// # Arguments
@@ -756,6 +749,7 @@ fn update_planner(
     quad: &Quadrotor,
     obstacles: &Vec<Obstacle>,
 ) {
+    let step = (step as f32 * 100.0 * quad.time_step) as i32;
     match step {
         500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
@@ -1302,7 +1296,10 @@ fn log_depth_image(
 }
 /// Main function to run the quadrotor simulation
 fn main() {
-    let mut quad = Quadrotor::new();
+    let control_frequency = 200.0;
+    let simulation_frequency = 1000.0;
+    let log_frequency = 20.0;
+    let mut quad = Quadrotor::new(1.0 / simulation_frequency);
     let mut controller = PIDController::new();
     let mut imu = Imu::new();
     let rec = rerun::RecordingStreamBuilder::new("Peng")
@@ -1319,6 +1316,8 @@ fn main() {
     log_mesh(&rec, 7, 0.5);
     log_maze_tube(&rec, &maze);
     log_maze_obstacles(&rec, &maze);
+    let mut previous_thrust = 0.0;
+    let mut previous_torque = Vector3::zeros();
     let mut i = 0;
     loop {
         let time = quad.time_step * i as f32;
@@ -1348,11 +1347,17 @@ fn main() {
             &quad.angular_velocity,
             quad.time_step,
         );
-        quad.update_dynamics_with_controls(thrust, &torque);
+        if i % (simulation_frequency as usize / control_frequency as usize) == 0 {
+            quad.update_dynamics_with_controls(thrust, &torque);
+            previous_thrust = thrust;
+            previous_torque = torque;
+        } else {
+            quad.update_dynamics_with_controls(previous_thrust, &previous_torque);
+        }
         imu.update(quad.time_step);
         let (true_accel, true_gyro) = quad.read_imu();
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
-        if i % 5 == 0 {
+        if i % (simulation_frequency as usize / log_frequency as usize) == 0 {
             if trajectory.add_point(quad.position) {
                 log_trajectory(&rec, &trajectory);
             }
@@ -1376,7 +1381,7 @@ fn main() {
             log_maze_obstacles(&rec, &maze);
         }
         i += 1;
-        if i >= 9000 {
+        if (i as f32 * 100.0 * quad.time_step) as i32 >= 9000 {
             break;
         }
     }
