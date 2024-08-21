@@ -36,10 +36,10 @@ Includes multiple planners:
 - Obstacle Avoidance Planner
 
 ### Obstacle Simulation
-Simulates moving obstacles in the environment, with collision detection and avoidance capabilities.
+Simulates moving obstacles in the environment, with collision detection and avoidance capabilities based on potential field.
 
 ### Data Logging and Visualization
-Logs comprehensive simulation data including quadrotor state, desired positions, IMU readings, and obstacle positions. Visualizes the simulation using the rerun library.
+Logs comprehensive simulation data including quadrotor state, desired positions, IMU readings, and depth renderings.Visualizes the simulation using the rerun library.
 
 ## Features
 
@@ -48,7 +48,18 @@ Logs comprehensive simulation data including quadrotor state, desired positions,
 - Multiple trajectory planners for diverse flight patterns
 - PID controller for position and attitude control
 - Obstacle generation and avoidance
+- Depth map rendering based on primitives
 - Integration with rerun for real-time visualization
+
+## TODO
+- [ ] Environment Effect simulation such as wind field
+- [ ] Complete differential flatness based planner
+- [ ] Add motor speed simulation
+- [ ] Complete differential flatness based planner
+- [ ] MPC controller
+- [ ] Advanced obstacle avoidance planner such as RRT*
+- [ ] Dynamic Maze generation
+- [ ] Modularize the pipeline
 
 ## License
 
