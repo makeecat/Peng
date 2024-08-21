@@ -55,7 +55,6 @@ Logs comprehensive simulation data including quadrotor state, desired positions,
 - [ ] Environment Effect simulation such as wind field
 - [ ] Complete differential flatness based planner
 - [ ] Add motor speed simulation
-- [ ] Complete differential flatness based planner
 - [ ] MPC controller
 - [ ] Advanced obstacle avoidance planner such as RRT*
 - [ ] Dynamic Maze generation
