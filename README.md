@@ -39,7 +39,7 @@ Includes multiple planners:
 Simulates moving obstacles in the environment, with collision detection and avoidance capabilities based on potential field.
 
 ### Data Logging and Visualization
-Logs comprehensive simulation data including quadrotor state, desired positions, IMU readings, and depth renderings.Visualizes the simulation using the rerun library.
+Logs comprehensive simulation data including quadrotor state, desired positions, IMU readings, and depth map rendering. Visualizes the simulation using the rerun library.
 
 ## Features
 
