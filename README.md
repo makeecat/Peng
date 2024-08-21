@@ -9,6 +9,7 @@ Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simula
 terminal 1
 ```
 cargo install rerun-cli
+rerun --version # ensure the version is later than 0.18.0
 rerun
 ```
 terminal 2
