@@ -83,4 +83,4 @@ Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=GitHub.com/makeecat,makeecat/Peng&type=Date)](https://star-history.com/#GitHub.com/makeecat&makeecat/Peng&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=makeecat/Peng&type=Date)](https://star-history.com/#makeecat/Peng&Date)
