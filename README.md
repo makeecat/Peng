@@ -80,3 +80,7 @@ The pipeline is designed to be minimal and for educational purpose.
 We chose the name Peng because our pipeline is flexible and can transform to suit different needs, just like the mythical bird.
 
 Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=GitHub.com/makeecat,makeecat/Peng&type=Date)](https://star-history.com/#GitHub.com/makeecat&makeecat/Peng&Date)
