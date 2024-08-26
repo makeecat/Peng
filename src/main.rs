@@ -8,7 +8,7 @@
 //! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
 //! - PID controller for position and attitude control
 //! - Integration with the `rerun` crate for visualization
-use nalgebra::{Matrix3, Rotation3, UnitQuaternion, Vector3};
+use nalgebra::{DVector, Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 /// Represents a quadrotor with its physical properties and state
 struct Quadrotor {
@@ -307,6 +307,8 @@ enum PlannerType {
     Landing(LandingPlanner),
     /// Obstacle Avoidance Planner based on Potential field
     ObstacleAvoidance(ObstacleAvoidancePlanner),
+    /// Minimum snap waypoint Planner based on Polynomial Trajectory Generation
+    MinimumSnapWaypoint(MinimumSnapWaypointPlanner),
 }
 impl PlannerType {
     /// Plans the trajectory based on the current planner type
@@ -329,6 +331,7 @@ impl PlannerType {
             PlannerType::Circle(p) => p.plan(current_position, current_velocity, time),
             PlannerType::Landing(p) => p.plan(current_position, current_velocity, time),
             PlannerType::ObstacleAvoidance(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::MinimumSnapWaypoint(p) => p.plan(current_position, current_velocity, time),
         }
     }
     /// Checks if the current trajectory is finished
@@ -345,6 +348,7 @@ impl PlannerType {
             PlannerType::Circle(p) => p.is_finished(current_position, time),
             PlannerType::Landing(p) => p.is_finished(current_position, time),
             PlannerType::ObstacleAvoidance(p) => p.is_finished(current_position, time),
+            PlannerType::MinimumSnapWaypoint(p) => p.is_finished(current_position, time),
         }
     }
 }
@@ -736,6 +740,222 @@ impl Planner for ObstacleAvoidancePlanner {
             && time >= self.start_time + self.duration
     }
 }
+
+/// Waypoint planner that generates a minimum snap trajectory between waypoints
+/// The planner calculates the coefficients for a minimum snap trajectory
+/// and uses them to generate the desired position, velocity, and yaw
+/// The trajectory is parameterized by time, and the planner interpolates between waypoints
+/// using the calculated coefficients
+/// The planner also supports specifying yaw angles at each waypoint
+/// # Arguments
+/// * `waypoints` - A list of waypoints to follow
+/// * `yaws` - A list of yaw angles at each waypoint
+/// * `segment_times` - A list of times to reach each waypoint
+/// * `start_time` - The start time of the trajectory
+struct MinimumSnapWaypointPlanner {
+    waypoints: Vec<Vector3<f32>>,
+    yaws: Vec<f32>,
+    times: Vec<f32>,
+    coefficients: Vec<Vec<Vector3<f32>>>,
+    yaw_coefficients: Vec<Vec<f32>>,
+    start_time: f32,
+}
+
+impl MinimumSnapWaypointPlanner {
+    fn new(
+        waypoints: Vec<Vector3<f32>>,
+        yaws: Vec<f32>,
+        segment_times: Vec<f32>,
+        start_time: f32,
+    ) -> Result<Self, &'static str> {
+        if waypoints.len() < 2 {
+            return Err("At least two waypoints are required");
+        }
+        if waypoints.len() != segment_times.len() + 1 || waypoints.len() != yaws.len() {
+            return Err("Number of segment times must be one less than number of waypoints, and yaws must match waypoints");
+        }
+        let mut planner = Self {
+            waypoints,
+            yaws,
+            times: segment_times,
+            coefficients: Vec::new(),
+            yaw_coefficients: Vec::new(),
+            start_time,
+        };
+        planner.compute_minimum_snap_trajectories();
+        planner.compute_minimum_acceleration_yaw_trajectories();
+        Ok(planner)
+    }
+    /// Compute the coefficients for the minimum snap trajectory
+    /// The coefficients are calculated for each segment between waypoints
+    /// The trajectory is parameterized by time, and the planner interpolates between waypoints
+    fn compute_minimum_snap_trajectories(&mut self) {
+        let n = self.waypoints.len() - 1; // Number of segments
+
+        // Compute the coefficients for each segment
+        for i in 0..n {
+            let duration = self.times[i];
+            let start = self.waypoints[i];
+            let end = self.waypoints[i + 1];
+
+            //let mut a = DMatrix::zeros(8, 8);
+            let mut a = SMatrix::<f32, 8, 8>::zeros();
+            let mut b = DVector::zeros(8);
+
+            // Start point constraints
+            a[(0, 0)] = 1.0;
+            a[(1, 1)] = 1.0;
+            a[(2, 2)] = 2.0;
+            a[(3, 3)] = 6.0;
+            b[0] = start.x;
+
+            // End point constraints
+            for j in 0..8 {
+                a[(4, j)] = duration.powi(j as i32);
+                if j > 0 {
+                    a[(5, j)] = j as f32 * duration.powi(j as i32 - 1);
+                }
+                if j > 1 {
+                    a[(6, j)] = j as f32 * (j - 1) as f32 * duration.powi(j as i32 - 2);
+                }
+                if j > 2 {
+                    a[(7, j)] =
+                        j as f32 * (j - 1) as f32 * (j - 2) as f32 * duration.powi(j as i32 - 3);
+                }
+            }
+            b[4] = end.x;
+
+            let x_coeffs = a.lu().solve(&b).unwrap();
+
+            let mut b_y = b.clone();
+            b_y[0] = start.y;
+            b_y[4] = end.y;
+            let y_coeffs = a.lu().solve(&b_y).unwrap();
+
+            let mut b_z = b.clone();
+            b_z[0] = start.z;
+            b_z[4] = end.z;
+            let z_coeffs = a.lu().solve(&b_z).unwrap();
+
+            self.coefficients.push(vec![
+                Vector3::new(x_coeffs[0], y_coeffs[0], z_coeffs[0]),
+                Vector3::new(x_coeffs[1], y_coeffs[1], z_coeffs[1]),
+                Vector3::new(x_coeffs[2], y_coeffs[2], z_coeffs[2]),
+                Vector3::new(x_coeffs[3], y_coeffs[3], z_coeffs[3]),
+                Vector3::new(x_coeffs[4], y_coeffs[4], z_coeffs[4]),
+                Vector3::new(x_coeffs[5], y_coeffs[5], z_coeffs[5]),
+                Vector3::new(x_coeffs[6], y_coeffs[6], z_coeffs[6]),
+                Vector3::new(x_coeffs[7], y_coeffs[7], z_coeffs[7]),
+            ]);
+        }
+    }
+    /// Compute the coefficients for yaw trajectories
+    /// The yaw trajectory is a cubic polynomial and interpolated between waypoints
+    fn compute_minimum_acceleration_yaw_trajectories(&mut self) {
+        let n = self.yaws.len() - 1; // Number of segments
+
+        for i in 0..n {
+            let duration = self.times[i];
+            let start_yaw = self.yaws[i];
+            let end_yaw = self.yaws[i + 1];
+
+            let mut a = SMatrix::<f32, 4, 4>::zeros();
+            let mut b = DVector::zeros(4);
+
+            // Start point constraints
+            a[(0, 0)] = 1.0;
+            a[(1, 1)] = 1.0;
+            b[0] = start_yaw;
+
+            // End point constraints
+            for j in 0..4 {
+                a[(2, j)] = duration.powi(j as i32);
+                if j > 0 {
+                    a[(3, j)] = j as f32 * duration.powi(j as i32 - 1);
+                }
+            }
+            b[2] = end_yaw;
+
+            let yaw_coeffs = a.lu().solve(&b).unwrap();
+            self.yaw_coefficients.push(yaw_coeffs.as_slice().to_vec());
+        }
+    }
+
+    /// Evaluate the trajectory at a given time, returns the position, velocity, yaw, and yaw rate at the given time
+    /// # Arguments
+    /// * `t` - The time to evaluate the trajectory at
+    /// * `coeffs` - The coefficients for the position trajectory
+    /// * `yaw_coeffs` - The coefficients for the yaw trajectory
+    /// # Returns
+    /// * `position` - The position at the given time (meters)
+    /// * `velocity` - The velocity at the given time (meters / second)
+    /// * `yaw` - The yaw at the given time (radians)
+    /// * `yaw_rate` - The yaw rate at the given time (radians / second)
+    fn evaluate_polynomial(
+        &self,
+        t: f32,
+        coeffs: &[Vector3<f32>],
+        yaw_coeffs: &[f32],
+    ) -> (Vector3<f32>, Vector3<f32>, f32, f32) {
+        let mut position = Vector3::zeros();
+        let mut velocity = Vector3::zeros();
+        let mut yaw = 0.0;
+        let mut yaw_rate = 0.0;
+
+        for (i, coeff) in coeffs.iter().enumerate() {
+            let ti = t.powi(i as i32);
+            position += coeff * ti;
+            if i > 0 {
+                velocity += coeff * (i as f32) * t.powi(i as i32 - 1);
+            }
+        }
+
+        for (i, &coeff) in yaw_coeffs.iter().enumerate() {
+            let ti = t.powi(i as i32);
+            yaw += coeff * ti;
+            if i > 0 {
+                yaw_rate += coeff * (i as f32) * t.powi(i as i32 - 1);
+            }
+        }
+
+        (position, velocity, yaw, yaw_rate)
+    }
+    fn plan(
+        &self,
+        _current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let relative_time = time - self.start_time;
+
+        // Find the current segment
+        let mut segment_start_time = 0.0;
+        let mut current_segment = 0;
+        for (i, &segment_duration) in self.times.iter().enumerate() {
+            if relative_time < segment_start_time + segment_duration {
+                current_segment = i;
+                break;
+            }
+            segment_start_time += segment_duration;
+        }
+
+        // Evaluate the polynomial for the current segment
+        let segment_time = relative_time - segment_start_time;
+        let (position, velocity, yaw, _yaw_rate) = self.evaluate_polynomial(
+            segment_time,
+            &self.coefficients[current_segment],
+            &self.yaw_coefficients[current_segment],
+        );
+
+        (position, velocity, yaw)
+    }
+
+    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+        let total_duration: f32 = self.times.iter().sum();
+        time >= self.start_time + total_duration
+            && (current_position - *self.waypoints.last().unwrap()).norm() < 0.1
+    }
+}
 /// Updates the planner based on the current simulation step
 /// # Arguments
 /// * `planner_manager` - The PlannerManager instance to update
@@ -835,7 +1055,30 @@ fn update_planner(
                 d0: 0.5,
             }))
         }
-        8500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+        8500 => {
+            let waypoints = vec![
+                quad.position,
+                Vector3::new(1.0, 1.0, 1.5),
+                Vector3::new(-1.0, 1.0, 1.75),
+                Vector3::new(0.0, -1.0, 1.0),
+                Vector3::new(0.0, 0.0, 0.5),
+            ];
+            let yaws = vec![
+                quad.orientation.euler_angles().2,
+                std::f32::consts::PI / 2.0,
+                std::f32::consts::PI,
+                -std::f32::consts::PI / 2.0,
+                0.0,
+            ];
+            let segment_times = vec![5.0, 5.0, 5.0, 5.0];
+            match MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, time) {
+                Ok(planner) => {
+                    planner_manager.set_planner(PlannerType::MinimumSnapWaypoint(planner))
+                }
+                Err(e) => println!("Error creating MinimumSnapWaypointPlanner: {}", e),
+            }
+        }
+        10500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
@@ -1381,7 +1624,7 @@ fn main() {
             log_maze_obstacles(&rec, &maze);
         }
         i += 1;
-        if (i as f32 * 100.0 * quad.time_step) as i32 >= 9000 {
+        if (i as f32 * 100.0 * quad.time_step) as i32 >= 11000 {
             break;
         }
     }

@@ -23,7 +23,7 @@ Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/trou
 ## Overview
 
 ### Quadrotor Simulator
-Simulates realistic quadrotor dynamics with properties like position, velocity, orientation, angular velocity, mass, and inertia. Includes methods for updating dynamics with control inputs and simulating IMU readings.
+Simulates realistic quadrotor dynamics with properties like position, velocity, orientation, angular velocity, mass, and inertia. Includes methods for updating dynamics with control inputs and simulating IMU readings and Depth map rendering.
 
 ### PID Controller
 Controls position and attitude with configurable gains for proportional, integral, and derivative terms. Handles both position and attitude control.
@@ -36,6 +36,7 @@ Includes multiple planners:
 - Circular Trajectory Planner
 - Landing Planner
 - Obstacle Avoidance Planner
+- Waypoint Planner
 
 ### Obstacle Simulation
 Simulates moving obstacles in the environment, with collision detection and avoidance capabilities based on potential field.
@@ -55,7 +56,6 @@ Logs comprehensive simulation data including quadrotor state, desired positions,
 
 ## TODO
 - [ ] Environment Effect simulation such as wind field
-- [ ] Complete differential flatness based planner
 - [ ] Add motor speed simulation
 - [ ] MPC controller
 - [ ] Advanced obstacle avoidance planner such as RRT*
