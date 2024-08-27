@@ -1524,19 +1524,48 @@ fn log_depth_image(
     min_depth: f32,
     max_depth: f32,
 ) {
-    let depth_image_buffer: image::GrayImage =
-        image::ImageBuffer::from_fn(width as u32, height as u32, |x, y| {
-            let depth = depth_image[y as usize * width + x as usize];
-            if depth.is_infinite() {
-                image::Luma([0u8])
-            } else {
-                let normalized_depth = (depth - min_depth) / (max_depth - min_depth);
-                image::Luma([(normalized_depth * 255.0) as u8])
+    let mut image = ndarray::Array::zeros((height, width, 3));
+    let depth_range = max_depth - min_depth;
+    image
+        .axis_iter_mut(ndarray::Axis(0))
+        .enumerate()
+        .for_each(|(y, mut row)| {
+            for (x, mut pixel) in row.axis_iter_mut(ndarray::Axis(0)).enumerate() {
+                let depth = depth_image[y * width + x];
+                let color = if depth.is_finite() {
+                    let normalized_depth = ((depth - min_depth) / depth_range).clamp(0.0, 1.0);
+                    color_map_fn(normalized_depth * 255.0)
+                } else {
+                    (0, 0, 0)
+                };
+                pixel[0] = color.0;
+                pixel[1] = color.1;
+                pixel[2] = color.2;
             }
         });
-    let depth_image_rerun = rerun::DepthImage::try_from(depth_image_buffer).unwrap();
-    rec.log("world/quad/cam/depth", &depth_image_rerun).unwrap();
+    rec.log(
+        "world/quad/cam/depth",
+        &rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image).unwrap(),
+    )
+    .unwrap();
 }
+/// turbo color map function
+/// # Arguments
+/// * `gray` - The gray value in the range [0, 255]
+/// # Returns
+/// * The RGB color value in the range [0, 255]
+fn color_map_fn(gray: f32) -> (u8, u8, u8) {
+    let x = gray / 255.0;
+    let r = (34.61
+        + x * (1172.33 - x * (10793.56 - x * (33300.12 - x * (38394.49 - x * 14825.05)))))
+        .clamp(0.0, 255.0) as u8;
+    let g = (23.31 + x * (557.33 + x * (1225.33 - x * (3574.96 - x * (1073.77 + x * 707.56)))))
+        .clamp(0.0, 255.0) as u8;
+    let b = (27.2 + x * (3211.1 - x * (15327.97 - x * (27814.0 - x * (22569.18 - x * 6838.66)))))
+        .clamp(0.0, 255.0) as u8;
+    (r, g, b)
+}
+
 /// Main function to run the quadrotor simulation
 fn main() {
     let control_frequency = 200.0;
