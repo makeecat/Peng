@@ -12,14 +12,20 @@ Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simula
 terminal 1
 ```
 cargo install rerun-cli
-rerun --version # ensure the version is later than 0.18.0
 rerun
 ```
 terminal 2
 ```
-cargo run --release
+cargo install peng_quad
+peng_quad
 ```
 Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
+
+If you want to build from latest source
+```
+git clone https://github.com/makeecat/Peng.git
+cargo run --release
+```
 
 ## Overview
 
