@@ -296,11 +296,11 @@ impl PIDController {
     /// A tuple containing the computed thrust and desired orientation quaternion
     fn compute_position_control(
         &mut self,
-        desired_position: Vector3<f32>,
-        desired_velocity: Vector3<f32>,
+        desired_position: &Vector3<f32>,
+        desired_velocity: &Vector3<f32>,
         desired_yaw: f32,
-        current_position: Vector3<f32>,
-        current_velocity: Vector3<f32>,
+        current_position: &Vector3<f32>,
+        current_velocity: &Vector3<f32>,
         dt: f32,
         mass: f32,
         gravity: f32,
@@ -1380,30 +1380,20 @@ fn log_data(
         .with_axis_length(0.7),
     )?;
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
-    for (name, value) in [
-        ("position/x", quad.position.x),
-        ("position/y", quad.position.y),
-        ("position/z", quad.position.z),
-        ("velocity/x", quad.velocity.x),
-        ("velocity/y", quad.velocity.y),
-        ("velocity/z", quad.velocity.z),
-        ("accel/x", measured_accel.x),
-        ("accel/y", measured_accel.y),
-        ("accel/z", measured_accel.z),
-        ("orientation/roll", quad_roll),
-        ("orientation/pitch", quad_pitch),
-        ("orientation/yaw", quad_yaw),
-        ("gyro/x", measured_gyro.x),
-        ("gyro/y", measured_gyro.y),
-        ("gyro/z", measured_gyro.z),
-        ("desired_position/x", desired_position.x),
-        ("desired_position/y", desired_position.y),
-        ("desired_position/z", desired_position.z),
-        ("desired_velocity/x", desired_velocity.x),
-        ("desired_velocity/y", desired_velocity.y),
-        ("desired_velocity/z", desired_velocity.z),
+    let quad_euler_angles: Vector3<f32> = Vector3::new(quad_roll, quad_pitch, quad_yaw);
+    for (prefix, vector) in [
+        ("position", &quad.position),
+        ("velocity", &quad.velocity),
+        ("accel", measured_accel),
+        ("orientation", &quad_euler_angles),
+        ("gyro", measured_gyro),
+        ("desired_position", desired_position),
+        ("desired_velocity", desired_velocity),
     ] {
-        rec.log(name, &rerun::Scalar::new(value as f64))?;
+        for (i, axis) in ["x", "y", "z"].iter().enumerate() {
+            let name = format!("{}/{}", prefix, axis);
+            rec.log(name, &rerun::Scalar::new(vector[i] as f64))?;
+        }
     }
     Ok(())
 }
@@ -1608,15 +1598,13 @@ fn color_map_fn(gray: f32) -> (u8, u8, u8) {
 
 /// Main function to run the quadrotor simulation
 fn main() -> Result<(), SimulationError> {
-    let control_frequency = 200.0;
-    let simulation_frequency = 1000.0;
-    let log_frequency = 20.0;
+    let (control_frequency, simulation_frequency, log_frequency) = (200.0, 1000.0, 20.0);
     let mut quad = Quadrotor::new(1.0 / simulation_frequency)?;
     let mut controller = PIDController::new();
     let mut imu = Imu::new();
+    println!("Please start a rerun-cli in another terminal.\n1. cargo install rerun-cli.\n2. rerun\nWaiting for connection to rerun...");
     let rec = rerun::RecordingStreamBuilder::new("Peng").connect()?;
-    let upper_bounds = Vector3::new(3.0, 2.0, 2.0);
-    let lower_bounds = Vector3::new(-3.0, -2.0, 0.0);
+    let (upper_bounds, lower_bounds) = (Vector3::new(3.0, 2.0, 2.0), Vector3::new(-3.0, -2.0, 0.0));
     let mut maze = Maze::new(lower_bounds, upper_bounds, 20);
     let camera = Camera::new((128, 96), 90.0_f32.to_radians(), 0.1, 5.0);
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
@@ -1642,11 +1630,11 @@ fn main() -> Result<(), SimulationError> {
             &maze.obstacles,
         )?;
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
-            desired_position,
-            desired_velocity,
+            &desired_position,
+            &desired_velocity,
             desired_yaw,
-            quad.position,
-            quad.velocity,
+            &quad.position,
+            &quad.velocity,
             quad.time_step,
             quad.mass,
             quad.gravity,
