@@ -1,6 +1,6 @@
 [package]
 name = "peng_quad"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Yang Zhou <yangzhou.info@gmail.com>"]
 description = "Peng is a minimal quadrotor pipeline including quadrotor dynamics, IMU simulation, various trajectory planners, PID controller and depth map rendering."
