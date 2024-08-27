@@ -10,6 +10,41 @@
 //! - Integration with the `rerun` crate for visualization
 use nalgebra::{DVector, Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
+use std::error::Error;
+use std::fmt;
+
+#[derive(Debug)]
+enum SimulationError {
+    RerunError(rerun::RecordingStreamError),
+    NalgebraError(String),
+    NormalError(rand_distr::NormalError),
+    OtherError(String),
+}
+impl fmt::Display for SimulationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SimulationError::RerunError(e) => write!(f, "Rerun error: {}", e),
+            SimulationError::NalgebraError(e) => write!(f, "Nalgebra error: {}", e),
+            SimulationError::NormalError(e) => write!(f, "Normal error: {}", e),
+            SimulationError::OtherError(e) => write!(f, "Other error: {}", e),
+        }
+    }
+}
+
+impl Error for SimulationError {}
+
+impl From<rerun::RecordingStreamError> for SimulationError {
+    fn from(error: rerun::RecordingStreamError) -> Self {
+        SimulationError::RerunError(error)
+    }
+}
+
+impl From<rand_distr::NormalError> for SimulationError {
+    fn from(error: rand_distr::NormalError) -> Self {
+        SimulationError::NormalError(error)
+    }
+}
+
 /// Represents a quadrotor with its physical properties and state
 struct Quadrotor {
     /// Current position of the quadrotor in 3D space
@@ -38,11 +73,17 @@ impl Quadrotor {
     /// Creates a new Quadrotor with default parameters
     /// * Arguments
     /// * `time_step` - The simulation time step in seconds
-    pub fn new(time_step: f32) -> Self {
+    pub fn new(time_step: f32) -> Result<Self, SimulationError> {
         let inertia_matrix = Matrix3::new(
             0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995,
         );
-        Self {
+        let inertia_matrix_inv =
+            inertia_matrix
+                .try_inverse()
+                .ok_or(SimulationError::NalgebraError(
+                    "Failed to invert inertia matrix".to_string(),
+                ))?;
+        Ok(Self {
             position: Vector3::zeros(),
             velocity: Vector3::zeros(),
             orientation: UnitQuaternion::identity(),
@@ -53,8 +94,8 @@ impl Quadrotor {
             // thrust_coefficient: 0.0,
             drag_coefficient: 0.000,
             inertia_matrix,
-            inertia_matrix_inv: inertia_matrix.try_inverse().unwrap(),
-        }
+            inertia_matrix_inv,
+        })
     }
     /// Updates the quadrotor's dynamics with control inputs
     /// # Arguments
@@ -83,9 +124,9 @@ impl Quadrotor {
     /// Simulates IMU readings with added noise
     /// # Returns
     /// A tuple containing the measured acceleration and angular velocity
-    pub fn read_imu(&self) -> (Vector3<f32>, Vector3<f32>) {
-        let accel_noise = Normal::new(0.0, 0.02).unwrap();
-        let gyro_noise = Normal::new(0.0, 0.01).unwrap();
+    pub fn read_imu(&self) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
+        let accel_noise = Normal::new(0.0, 0.02)?;
+        let gyro_noise = Normal::new(0.0, 0.01)?;
         let mut rng = rand::thread_rng();
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let specific_force =
@@ -102,7 +143,7 @@ impl Quadrotor {
                 gyro_noise.sample(&mut rng),
                 gyro_noise.sample(&mut rng),
             );
-        (measured_acceleration, measured_angular_velocity)
+        Ok((measured_acceleration, measured_angular_velocity))
     }
 }
 /// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
@@ -133,12 +174,13 @@ impl Imu {
     /// Updates the IMU biases over time
     /// # Arguments
     /// * `dt` - Time step for the update
-    pub fn update(&mut self, dt: f32) {
-        let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt()).unwrap();
+    pub fn update(&mut self, dt: f32) -> Result<(), SimulationError> {
+        let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt())?;
         let drift_vector =
             || Vector3::from_iterator((0..3).map(|_| bias_drift.sample(&mut rand::thread_rng())));
         self.accel_bias += drift_vector();
         self.gyro_bias += drift_vector();
+        Ok(())
     }
     /// Simulates IMU readings with added bias and noise
     /// # Arguments
@@ -150,10 +192,10 @@ impl Imu {
         &self,
         true_acceleration: Vector3<f32>,
         true_angular_velocity: Vector3<f32>,
-    ) -> (Vector3<f32>, Vector3<f32>) {
+    ) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
         let mut rng = rand::thread_rng();
-        let accel_noise = Normal::new(0.0, self.accel_noise_std).unwrap();
-        let gyro_noise = Normal::new(0.0, self.gyro_noise_std).unwrap();
+        let accel_noise = Normal::new(0.0, self.accel_noise_std)?;
+        let gyro_noise = Normal::new(0.0, self.gyro_noise_std)?;
         let measured_acceleration = true_acceleration
             + self.accel_bias
             + Vector3::new(
@@ -168,7 +210,7 @@ impl Imu {
                 gyro_noise.sample(&mut rng),
                 gyro_noise.sample(&mut rng),
             );
-        (measured_acceleration, measured_angular_velocity)
+        Ok((measured_acceleration, measured_angular_velocity))
     }
 }
 /// PID controller for quadrotor position and attitude control
@@ -340,14 +382,18 @@ impl PlannerType {
     /// * `time` - The current simulation time
     /// # Returns
     /// `true` if the trajectory is finished, `false` otherwise
-    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
         match self {
-            PlannerType::Hover(p) => p.is_finished(current_position, time),
-            PlannerType::MinimumJerkLine(p) => p.is_finished(current_position, time),
-            PlannerType::Lissajous(p) => p.is_finished(current_position, time),
-            PlannerType::Circle(p) => p.is_finished(current_position, time),
-            PlannerType::Landing(p) => p.is_finished(current_position, time),
-            PlannerType::ObstacleAvoidance(p) => p.is_finished(current_position, time),
+            PlannerType::Hover(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::MinimumJerkLine(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::Lissajous(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::Circle(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::Landing(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::ObstacleAvoidance(p) => Ok(p.is_finished(current_position, time)),
             PlannerType::MinimumSnapWaypoint(p) => p.is_finished(current_position, time),
         }
     }
@@ -662,8 +708,8 @@ impl PlannerManager {
         current_velocity: Vector3<f32>,
         time: f32,
         obstacles: &Vec<Obstacle>,
-    ) -> (Vector3<f32>, Vector3<f32>, f32) {
-        if self.current_planner.is_finished(current_position, time) {
+    ) -> Result<(Vector3<f32>, Vector3<f32>, f32), SimulationError> {
+        if self.current_planner.is_finished(current_position, time)? {
             self.current_planner = PlannerType::Hover(HoverPlanner {
                 target_position: current_position,
                 target_yaw: current_orientation.euler_angles().2,
@@ -673,8 +719,9 @@ impl PlannerManager {
         if let PlannerType::ObstacleAvoidance(ref mut planner) = self.current_planner {
             planner.obstacles = obstacles.clone();
         }
-        self.current_planner
-            .plan(current_position, current_velocity, time)
+        Ok(self
+            .current_planner
+            .plan(current_position, current_velocity, time))
     }
 }
 /// Obstacle avoidance planner that uses a potential field approach to avoid obstacles
@@ -767,12 +814,14 @@ impl MinimumSnapWaypointPlanner {
         yaws: Vec<f32>,
         segment_times: Vec<f32>,
         start_time: f32,
-    ) -> Result<Self, &'static str> {
+    ) -> Result<Self, SimulationError> {
         if waypoints.len() < 2 {
-            return Err("At least two waypoints are required");
+            return Err(SimulationError::OtherError(
+                "At least two waypoints are required".to_string(),
+            ));
         }
         if waypoints.len() != segment_times.len() + 1 || waypoints.len() != yaws.len() {
-            return Err("Number of segment times must be one less than number of waypoints, and yaws must match waypoints");
+            return Err(SimulationError::OtherError("Number of segment times must be one less than number of waypoints, and yaws must match waypoints".to_string()));
         }
         let mut planner = Self {
             waypoints,
@@ -782,14 +831,14 @@ impl MinimumSnapWaypointPlanner {
             yaw_coefficients: Vec::new(),
             start_time,
         };
-        planner.compute_minimum_snap_trajectories();
-        planner.compute_minimum_acceleration_yaw_trajectories();
+        planner.compute_minimum_snap_trajectories()?;
+        planner.compute_minimum_acceleration_yaw_trajectories()?;
         Ok(planner)
     }
     /// Compute the coefficients for the minimum snap trajectory
     /// The coefficients are calculated for each segment between waypoints
     /// The trajectory is parameterized by time, and the planner interpolates between waypoints
-    fn compute_minimum_snap_trajectories(&mut self) {
+    fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.waypoints.len() - 1; // Number of segments
 
         // Compute the coefficients for each segment
@@ -825,17 +874,23 @@ impl MinimumSnapWaypointPlanner {
             }
             b[4] = end.x;
 
-            let x_coeffs = a.lu().solve(&b).unwrap();
+            let x_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
+                "Failed to solve for x coefficients in MinimumSnapWaypointPlanner".to_string(),
+            ))?;
 
             let mut b_y = b.clone();
             b_y[0] = start.y;
             b_y[4] = end.y;
-            let y_coeffs = a.lu().solve(&b_y).unwrap();
+            let y_coeffs = a.lu().solve(&b_y).ok_or(SimulationError::NalgebraError(
+                "Failed to solve for y coefficients in MinimumSnapWaypointPlanner".to_string(),
+            ))?;
 
             let mut b_z = b.clone();
             b_z[0] = start.z;
             b_z[4] = end.z;
-            let z_coeffs = a.lu().solve(&b_z).unwrap();
+            let z_coeffs = a.lu().solve(&b_z).ok_or(SimulationError::NalgebraError(
+                "Failed to solve for z coefficients in MinimumSnapWaypointPlanner".to_string(),
+            ))?;
 
             self.coefficients.push(vec![
                 Vector3::new(x_coeffs[0], y_coeffs[0], z_coeffs[0]),
@@ -848,10 +903,11 @@ impl MinimumSnapWaypointPlanner {
                 Vector3::new(x_coeffs[7], y_coeffs[7], z_coeffs[7]),
             ]);
         }
+        Ok(())
     }
     /// Compute the coefficients for yaw trajectories
     /// The yaw trajectory is a cubic polynomial and interpolated between waypoints
-    fn compute_minimum_acceleration_yaw_trajectories(&mut self) {
+    fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.yaws.len() - 1; // Number of segments
 
         for i in 0..n {
@@ -876,9 +932,12 @@ impl MinimumSnapWaypointPlanner {
             }
             b[2] = end_yaw;
 
-            let yaw_coeffs = a.lu().solve(&b).unwrap();
+            let yaw_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
+                "Failed to solve for yaw coefficients in MinimumSnapWaypointPlanner".to_string(),
+            ))?;
             self.yaw_coefficients.push(yaw_coeffs.as_slice().to_vec());
         }
+        Ok(())
     }
 
     /// Evaluate the trajectory at a given time, returns the position, velocity, yaw, and yaw rate at the given time
@@ -950,10 +1009,17 @@ impl MinimumSnapWaypointPlanner {
         (position, velocity, yaw)
     }
 
-    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
         let total_duration: f32 = self.times.iter().sum();
-        time >= self.start_time + total_duration
-            && (current_position - *self.waypoints.last().unwrap()).norm() < 0.1
+        let last_waypoint = self.waypoints.last().ok_or(SimulationError::OtherError(
+            "No waypoints available".to_string(),
+        ))?;
+        Ok(time >= self.start_time + total_duration
+            && (current_position - last_waypoint).norm() < 0.1)
     }
 }
 /// Updates the planner based on the current simulation step
@@ -1199,7 +1265,7 @@ impl Camera {
         quad_orientation: &UnitQuaternion<f32>,
         maze: &Maze,
         depth_buffer: &mut Vec<f32>,
-    ) {
+    ) -> Result<(), SimulationError> {
         let (width, height) = self.resolution;
         let total_pixels = width * height;
         depth_buffer.clear();
@@ -1209,15 +1275,16 @@ impl Camera {
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
-        depth_buffer.extend((0..total_pixels).map(|i| {
-            self.ray_cast(
+        for i in 0..total_pixels {
+            let depth = self.ray_cast(
                 quad_position,
                 &rotation_world_to_camera,
                 &(rotation_camera_to_world * self.ray_directions[i]),
                 maze,
-            )
-            .unwrap_or(std::f32::INFINITY)
-        }));
+            )?;
+            depth_buffer.push(depth);
+        }
+        Ok(())
     }
     /// Casts a ray from the camera origin in the given direction
     /// # Arguments
@@ -1233,7 +1300,7 @@ impl Camera {
         rotation_world_to_camera: &Matrix3<f32>,
         direction: &Vector3<f32>,
         maze: &Maze,
-    ) -> Option<f32> {
+    ) -> Result<f32, SimulationError> {
         let mut closest_hit = self.far;
         // Inline tube intersection
         for axis in 0..3 {
@@ -1255,7 +1322,7 @@ impl Camera {
         }
         // Early exit if we've hit a wall closer than any possible obstacle
         if closest_hit <= self.near {
-            return None;
+            return Ok(std::f32::INFINITY);
         }
         // Inline sphere intersection
         for obstacle in &maze.obstacles {
@@ -1272,9 +1339,9 @@ impl Camera {
         }
         if closest_hit < self.far {
             let closest_pt = rotation_world_to_camera * direction * closest_hit;
-            Some(closest_pt.x)
+            Ok(closest_pt.x)
         } else {
-            None
+            Ok(std::f32::INFINITY)
         }
     }
 }
@@ -1292,14 +1359,13 @@ fn log_data(
     desired_velocity: &Vector3<f32>,
     measured_accel: &Vector3<f32>,
     measured_gyro: &Vector3<f32>,
-) {
+) -> Result<(), SimulationError> {
     rec.log(
         "world/quad/desired_position",
         &rerun::Points3D::new([(desired_position.x, desired_position.y, desired_position.z)])
             .with_radii([0.1])
             .with_colors([rerun::Color::from_rgb(255, 255, 255)]),
-    )
-    .unwrap();
+    )?;
     rec.log(
         "world/quad/base_link",
         &rerun::Transform3D::from_translation_rotation(
@@ -1312,8 +1378,7 @@ fn log_data(
             ]),
         )
         .with_axis_length(0.7),
-    )
-    .unwrap();
+    )?;
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
     for (name, value) in [
         ("position/x", quad.position.x),
@@ -1338,14 +1403,15 @@ fn log_data(
         ("desired_velocity/y", desired_velocity.y),
         ("desired_velocity/z", desired_velocity.z),
     ] {
-        rec.log(name, &rerun::Scalar::new(value as f64)).unwrap();
+        rec.log(name, &rerun::Scalar::new(value as f64))?;
     }
+    Ok(())
 }
 /// Log the maze tube to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
-fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
+fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), SimulationError> {
     let (lower_bounds, upper_bounds) = (maze.lower_bounds, maze.upper_bounds);
     let center_position = rerun::external::glam::Vec3::new(
         (lower_bounds.x + upper_bounds.x) / 2.0,
@@ -1361,14 +1427,14 @@ fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) {
         "world/maze/tube",
         &rerun::Boxes3D::from_centers_and_half_sizes([center_position], [half_sizes])
             .with_colors([rerun::Color::from_rgb(128, 128, 255)]),
-    )
-    .unwrap();
+    )?;
+    Ok(())
 }
 /// Log the maze obstacles to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
-fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
+fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), SimulationError> {
     let (positions, radii): (Vec<_>, Vec<_>) = maze
         .obstacles
         .iter()
@@ -1388,8 +1454,8 @@ fn log_maze_obstacles(rec: &rerun::RecordingStream, maze: &Maze) {
         &rerun::Points3D::new(positions)
             .with_radii(radii)
             .with_colors([rerun::Color::from_rgb(255, 128, 128)]),
-    )
-    .unwrap();
+    )?;
+    Ok(())
 }
 /// A struct to hold trajectory data
 /// # Fields
@@ -1429,7 +1495,10 @@ impl Trajectory {
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `trajectory` - The Trajectory instance
-fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
+fn log_trajectory(
+    rec: &rerun::RecordingStream,
+    trajectory: &Trajectory,
+) -> Result<(), SimulationError> {
     let path = trajectory
         .points
         .iter()
@@ -1438,15 +1507,19 @@ fn log_trajectory(rec: &rerun::RecordingStream, trajectory: &Trajectory) {
     rec.log(
         "world/quad/path",
         &rerun::LineStrips3D::new([path]).with_colors([rerun::Color::from_rgb(0, 255, 255)]),
-    )
-    .unwrap();
+    )?;
+    Ok(())
 }
 /// log mesh data to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `division` - The number of divisions in the mesh
 /// * `spacing` - The spacing between divisions
-fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
+fn log_mesh(
+    rec: &rerun::RecordingStream,
+    division: usize,
+    spacing: f32,
+) -> Result<(), SimulationError> {
     let grid_size: usize = division + 1;
     let half_grid_size: f32 = (division as f32 * spacing) / 2.0;
     let points: Vec<rerun::external::glam::Vec3> = (0..grid_size)
@@ -1473,8 +1546,8 @@ fn log_mesh(rec: &rerun::RecordingStream, division: usize, spacing: f32) {
         &rerun::LineStrips3D::new(line_strips)
             .with_colors([rerun::Color::from_rgb(255, 255, 255)])
             .with_radii([0.02]),
-    )
-    .unwrap();
+    )?;
+    Ok(())
 }
 /// log depth image data to the rerun recording stream
 /// # Arguments
@@ -1491,7 +1564,7 @@ fn log_depth_image(
     height: usize,
     min_depth: f32,
     max_depth: f32,
-) {
+) -> Result<(), SimulationError> {
     let mut image = ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
     image
@@ -1511,11 +1584,10 @@ fn log_depth_image(
                 pixel[2] = color.2;
             }
         });
-    rec.log(
-        "world/quad/cam/depth",
-        &rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image).unwrap(),
-    )
-    .unwrap();
+    let rerun_image = rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image)
+        .map_err(|e| SimulationError::OtherError(format!("Failed to create rerun image: {}", e)))?;
+    rec.log("world/quad/cam/depth", &rerun_image)?;
+    Ok(())
 }
 /// turbo color map function
 /// # Arguments
@@ -1535,16 +1607,14 @@ fn color_map_fn(gray: f32) -> (u8, u8, u8) {
 }
 
 /// Main function to run the quadrotor simulation
-fn main() {
+fn main() -> Result<(), SimulationError> {
     let control_frequency = 200.0;
     let simulation_frequency = 1000.0;
     let log_frequency = 20.0;
-    let mut quad = Quadrotor::new(1.0 / simulation_frequency);
+    let mut quad = Quadrotor::new(1.0 / simulation_frequency)?;
     let mut controller = PIDController::new();
     let mut imu = Imu::new();
-    let rec = rerun::RecordingStreamBuilder::new("Peng")
-        .connect()
-        .unwrap();
+    let rec = rerun::RecordingStreamBuilder::new("Peng").connect()?;
     let upper_bounds = Vector3::new(3.0, 2.0, 2.0);
     let lower_bounds = Vector3::new(-3.0, -2.0, 0.0);
     let mut maze = Maze::new(lower_bounds, upper_bounds, 20);
@@ -1553,9 +1623,9 @@ fn main() {
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
     rec.set_time_seconds("timestamp", 0);
-    log_mesh(&rec, 7, 0.5);
-    log_maze_tube(&rec, &maze);
-    log_maze_obstacles(&rec, &maze);
+    log_mesh(&rec, 7, 0.5)?;
+    log_maze_tube(&rec, &maze)?;
+    log_maze_obstacles(&rec, &maze)?;
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
     let mut i = 0;
@@ -1570,7 +1640,7 @@ fn main() {
             quad.velocity,
             time,
             &maze.obstacles,
-        );
+        )?;
         let (thrust, calculated_desired_orientation) = controller.compute_position_control(
             desired_position,
             desired_velocity,
@@ -1594,12 +1664,12 @@ fn main() {
         } else {
             quad.update_dynamics_with_controls(previous_thrust, &previous_torque);
         }
-        imu.update(quad.time_step);
-        let (true_accel, true_gyro) = quad.read_imu();
-        let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro);
+        imu.update(quad.time_step)?;
+        let (true_accel, true_gyro) = quad.read_imu()?;
+        let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
         if i % (simulation_frequency as usize / log_frequency as usize) == 0 {
             if trajectory.add_point(quad.position) {
-                log_trajectory(&rec, &trajectory);
+                log_trajectory(&rec, &trajectory)?;
             }
             log_data(
                 &rec,
@@ -1608,8 +1678,8 @@ fn main() {
                 &desired_velocity,
                 &_measured_accel,
                 &_measured_gyro,
-            );
-            camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer);
+            )?;
+            camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer)?;
             log_depth_image(
                 &rec,
                 &depth_buffer,
@@ -1617,12 +1687,13 @@ fn main() {
                 camera.resolution.1,
                 camera.near,
                 camera.far,
-            );
-            log_maze_obstacles(&rec, &maze);
+            )?;
+            log_maze_obstacles(&rec, &maze)?;
         }
         i += 1;
         if (i as f32 * 100.0 * quad.time_step) as i32 >= 8000 {
             break;
         }
     }
+    Ok(())
 }
