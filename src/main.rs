@@ -971,47 +971,15 @@ fn update_planner(
 ) {
     let step = (step as f32 * 100.0 * quad.time_step) as i32;
     match step {
-        500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
+        100 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(0.0, 0.0, 1.0),
             start_yaw: quad.orientation.euler_angles().2,
             end_yaw: 0.0,
             start_time: time,
-            duration: 3.0,
+            duration: 2.5,
         })),
-        1000 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-            start_position: quad.position,
-            end_position: Vector3::new(1.0, 0.0, 1.0),
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: 0.0,
-            start_time: time,
-            duration: 3.0,
-        })),
-        1500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-            start_position: quad.position,
-            end_position: Vector3::new(1.0, 1.0, 1.0),
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: std::f32::consts::PI / 2.0,
-            start_time: time,
-            duration: 3.0,
-        })),
-        2000 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-            start_position: quad.position,
-            end_position: Vector3::new(0.0, 1.0, 1.0),
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: std::f32::consts::PI / 2.0,
-            start_time: time,
-            duration: 3.0,
-        })),
-        2500 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-            start_position: quad.position,
-            end_position: Vector3::new(0.0, 0.0, 0.5),
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: 0.0,
-            start_time: time,
-            duration: 3.0,
-        })),
-        3000 => planner_manager.set_planner(PlannerType::Lissajous(LissajousPlanner {
+        500 => planner_manager.set_planner(PlannerType::Lissajous(LissajousPlanner {
             start_position: quad.position,
             center: Vector3::new(0.5, 0.5, 1.0),
             amplitude: Vector3::new(0.5, 0.5, 0.2),
@@ -1023,7 +991,7 @@ fn update_planner(
             end_yaw: quad.orientation.euler_angles().2 + 2.0 * std::f32::consts::PI,
             ramp_time: 5.0,
         })),
-        5200 => planner_manager.set_planner(PlannerType::Circle(CirclePlanner {
+        2700 => planner_manager.set_planner(PlannerType::Circle(CirclePlanner {
             center: Vector3::new(0.5, 0.5, 1.0),
             radius: 0.5,
             angular_velocity: 1.0,
@@ -1034,7 +1002,7 @@ fn update_planner(
             end_yaw: quad.orientation.euler_angles().2,
             ramp_time: 2.0,
         })),
-        6200 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
+        3700 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(quad.position.x, quad.position.y, 0.5),
             start_yaw: quad.orientation.euler_angles().2,
@@ -1042,11 +1010,11 @@ fn update_planner(
             start_time: time,
             duration: 5.0,
         })),
-        7000 => {
+        4500 => {
             planner_manager.set_planner(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
                 target_position: Vector3::new(1.5, 1.0, 1.0),
                 start_time: time,
-                duration: 15.0,
+                duration: 10.0,
                 start_yaw: quad.orientation.euler_angles().2,
                 end_yaw: 0.0,
                 obstacles: obstacles.clone(),
@@ -1055,7 +1023,7 @@ fn update_planner(
                 d0: 0.5,
             }))
         }
-        8500 => {
+        5500 => {
             let waypoints = vec![
                 quad.position,
                 Vector3::new(1.0, 1.0, 1.5),
@@ -1078,7 +1046,7 @@ fn update_planner(
                 Err(e) => println!("Error creating MinimumSnapWaypointPlanner: {}", e),
             }
         }
-        10500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+        7500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
@@ -1653,7 +1621,7 @@ fn main() {
             log_maze_obstacles(&rec, &maze);
         }
         i += 1;
-        if (i as f32 * 100.0 * quad.time_step) as i32 >= 11000 {
+        if (i as f32 * 100.0 * quad.time_step) as i32 >= 8000 {
             break;
         }
     }
