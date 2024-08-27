@@ -8,7 +8,7 @@
 //! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
 //! - PID controller for position and attitude control
 //! - Integration with the `rerun` crate for visualization
-use nalgebra::{DVector, Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
+use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 use std::error::Error;
 use std::fmt;
@@ -840,23 +840,15 @@ impl MinimumSnapWaypointPlanner {
     /// The trajectory is parameterized by time, and the planner interpolates between waypoints
     fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.waypoints.len() - 1; // Number of segments
-
-        // Compute the coefficients for each segment
         for i in 0..n {
             let duration = self.times[i];
-            let start = self.waypoints[i];
-            let end = self.waypoints[i + 1];
-
-            //let mut a = DMatrix::zeros(8, 8);
+            let (start, end) = (self.waypoints[i], self.waypoints[i + 1]);
             let mut a = SMatrix::<f32, 8, 8>::zeros();
-            let mut b = DVector::zeros(8);
+            let mut b = SMatrix::<f32, 8, 1>::zeros();
 
             // Start point constraints
-            a[(0, 0)] = 1.0;
-            a[(1, 1)] = 1.0;
-            a[(2, 2)] = 2.0;
-            a[(3, 3)] = 6.0;
-            b[0] = start.x;
+            (a[(0, 0)], a[(1, 1)], a[(2, 2)], a[(3, 3)]) = (1.0, 1.0, 2.0, 6.0);
+            (b[0], b[4]) = (start.x, end.x);
 
             // End point constraints
             for j in 0..8 {
@@ -872,22 +864,19 @@ impl MinimumSnapWaypointPlanner {
                         j as f32 * (j - 1) as f32 * (j - 2) as f32 * duration.powi(j as i32 - 3);
                 }
             }
-            b[4] = end.x;
 
             let x_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for x coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
 
             let mut b_y = b.clone();
-            b_y[0] = start.y;
-            b_y[4] = end.y;
+            (b_y[0], b_y[4]) = (start.y, end.y);
             let y_coeffs = a.lu().solve(&b_y).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for y coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
 
             let mut b_z = b.clone();
-            b_z[0] = start.z;
-            b_z[4] = end.z;
+            (b_z[0], b_z[4]) = (start.z, end.z);
             let z_coeffs = a.lu().solve(&b_z).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for z coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
@@ -909,14 +898,13 @@ impl MinimumSnapWaypointPlanner {
     /// The yaw trajectory is a cubic polynomial and interpolated between waypoints
     fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.yaws.len() - 1; // Number of segments
-
         for i in 0..n {
             let duration = self.times[i];
             let start_yaw = self.yaws[i];
             let end_yaw = self.yaws[i + 1];
 
             let mut a = SMatrix::<f32, 4, 4>::zeros();
-            let mut b = DVector::zeros(4);
+            let mut b = SMatrix::<f32, 4, 1>::zeros();
 
             // Start point constraints
             a[(0, 0)] = 1.0;
@@ -939,7 +927,6 @@ impl MinimumSnapWaypointPlanner {
         }
         Ok(())
     }
-
     /// Evaluate the trajectory at a given time, returns the position, velocity, yaw, and yaw rate at the given time
     /// # Arguments
     /// * `t` - The time to evaluate the trajectory at
