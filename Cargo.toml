@@ -1,11 +1,25 @@
 [package]
-name = "Peng"
+name = "peng_quad"
 version = "0.1.0"
 edition = "2021"
+authors = ["Yang Zhou <yangzhou.info@gmail.com>"]
+description = "Peng is a minimal quadrotor pipeline including quadrotor dynamics, IMU simulation, various trajectory planners, PID controller and depth map rendering."
+license = "MIT OR Apache-2.0"
+documentation = "https://makeecat.github.io/Peng"
+homepage = "https://github.com/makeecat/Peng"
+repository = "https://github.com/makeecat/Peng"
+categories = [
+    "science::robotics",
+    "aerospace::simulation",
+    "aerospace::unmanned-aerial-vehicles",
+    "algorithms",
+]
+keywords = ["quadrotor", "uav", "minimal", "simulation"]
+readme = "README.md"
 
 [dependencies]
 nalgebra = "0.33.0"
 rand = "0.8.5"
 rand_distr = "0.4.3"
 rerun = "0.18.0"
-ndarray= "0.15.6"
+ndarray = "0.15.6"
