@@ -973,17 +973,9 @@ fn update_planner(
             end_yaw: current_yaw,
             ramp_time: 2.0,
         })),
-        3700 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-            start_position: quad.position,
-            end_position: Vector3::new(quad.position.x, quad.position.y, 0.5),
-            start_yaw: current_yaw,
-            end_yaw: 0.0,
-            start_time: time,
-            duration: 5.0,
-        })),
-        4500 => {
+        3700 => {
             planner_manager.set_planner(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
-                target_position: Vector3::new(1.5, 1.0, 1.0),
+                target_position: Vector3::new(1.5, 1.0, 0.5),
                 start_time: time,
                 duration: 10.0,
                 start_yaw: current_yaw,
@@ -994,7 +986,7 @@ fn update_planner(
                 d0: 0.5,
             }))
         }
-        5500 => {
+        4500 => {
             let waypoints = vec![
                 quad.position,
                 Vector3::new(1.0, 1.0, 1.5),
@@ -1011,7 +1003,7 @@ fn update_planner(
                 Err(e) => println!("Error creating MinimumSnapWaypointPlanner: {}", e),
             }
         }
-        7500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
+        6500 => planner_manager.set_planner(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
@@ -1573,7 +1565,7 @@ fn main() -> Result<(), SimulationError> {
             log_maze_obstacles(&rec, &maze)?;
         }
         i += 1;
-        if (i as f32 * 100.0 * quad.time_step) as i32 >= 8000 {
+        if (i as f32 * 100.0 * quad.time_step) as i32 >= 7000 {
             break;
         }
     }
