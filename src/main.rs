@@ -11,36 +11,17 @@
 use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::{FRAC_PI_2, PI};
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 enum SimulationError {
-    RerunError(rerun::RecordingStreamError),
+    #[error("Rerun error: {0}")]
+    RerunError(#[from] rerun::RecordingStreamError),
+    #[error("Nalgebra error: {0}")]
     NalgebraError(String),
-    NormalError(rand_distr::NormalError),
+    #[error("Normal error: {0}")]
+    NormalError(#[from] rand_distr::NormalError),
+    #[error("Other error: {0}")]
     OtherError(String),
 }
-impl std::fmt::Display for SimulationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SimulationError::RerunError(e) => write!(f, "Rerun error: {}", e),
-            SimulationError::NalgebraError(e) => write!(f, "Nalgebra error: {}", e),
-            SimulationError::NormalError(e) => write!(f, "Normal error: {}", e),
-            SimulationError::OtherError(e) => write!(f, "Other error: {}", e),
-        }
-    }
-}
-
-impl From<rerun::RecordingStreamError> for SimulationError {
-    fn from(error: rerun::RecordingStreamError) -> Self {
-        SimulationError::RerunError(error)
-    }
-}
-
-impl From<rand_distr::NormalError> for SimulationError {
-    fn from(error: rand_distr::NormalError) -> Self {
-        SimulationError::NormalError(error)
-    }
-}
-
 /// Represents a quadrotor with its physical properties and state
 struct Quadrotor {
     /// Current position of the quadrotor in 3D space
