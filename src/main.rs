@@ -272,12 +272,10 @@ impl PIDController {
         let (roll_error, pitch_error, yaw_error) = error_orientation.euler_angles();
         let error_angles = Vector3::new(roll_error, pitch_error, yaw_error);
         self.integral_att_error += error_angles * dt;
-        self.integral_att_error
-            .component_mul_assign(&self.max_integral_att.map(|x| x.signum()));
         self.integral_att_error = self
             .integral_att_error
             .zip_map(&self.max_integral_att, |int, max| int.clamp(-max, max));
-        let error_angular_velocity = -current_angular_velocity;
+        let error_angular_velocity = -current_angular_velocity; // TODO: Add desired angular velocity
         self.kp_att.component_mul(&error_angles)
             + self.kd_att.component_mul(&error_angular_velocity)
             + self.ki_att.component_mul(&self.integral_att_error)
@@ -308,9 +306,6 @@ impl PIDController {
         let error_position = desired_position - current_position;
         let error_velocity = desired_velocity - current_velocity;
         self.integral_pos_error += error_position * dt;
-        self.integral_pos_error = self
-            .integral_pos_error
-            .component_mul(&self.max_integral_pos.map(|x| x.signum()));
         self.integral_pos_error = self
             .integral_pos_error
             .zip_map(&self.max_integral_pos, |int, max| int.clamp(-max, max));
@@ -1556,9 +1551,7 @@ fn log_depth_image(
                 } else {
                     (0, 0, 0)
                 };
-                pixel[0] = color.0;
-                pixel[1] = color.1;
-                pixel[2] = color.2;
+                (pixel[0], pixel[1], pixel[2]) = color;
             }
         });
     let rerun_image = rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image)
