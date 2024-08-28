@@ -10,9 +10,7 @@
 //! - Integration with the `rerun` crate for visualization
 use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
-use std::error::Error;
-use std::fmt;
-
+use std::f32::consts::{FRAC_PI_2, PI};
 #[derive(Debug)]
 enum SimulationError {
     RerunError(rerun::RecordingStreamError),
@@ -20,8 +18,8 @@ enum SimulationError {
     NormalError(rand_distr::NormalError),
     OtherError(String),
 }
-impl fmt::Display for SimulationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for SimulationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SimulationError::RerunError(e) => write!(f, "Rerun error: {}", e),
             SimulationError::NalgebraError(e) => write!(f, "Nalgebra error: {}", e),
@@ -30,8 +28,6 @@ impl fmt::Display for SimulationError {
         }
     }
 }
-
-impl Error for SimulationError {}
 
 impl From<rerun::RecordingStreamError> for SimulationError {
     fn from(error: rerun::RecordingStreamError) -> Self {
@@ -91,7 +87,6 @@ impl Quadrotor {
             mass: 1.3,
             gravity: 9.81,
             time_step,
-            // thrust_coefficient: 0.0,
             drag_coefficient: 0.000,
             inertia_matrix,
             inertia_matrix_inv,
@@ -108,10 +103,8 @@ impl Quadrotor {
     ) {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * self.velocity.norm() * self.velocity;
-        let thrust_body = Vector3::new(0.0, 0.0, control_thrust);
-        let thrust_world = self.orientation * thrust_body;
-        let total_force = thrust_world + gravity_force + drag_force;
-        let acceleration = total_force / self.mass;
+        let thrust_world = self.orientation * Vector3::new(0.0, 0.0, control_thrust);
+        let acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
         self.velocity += acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
         let inertia_angular_velocity = self.inertia_matrix * self.angular_velocity;
@@ -125,8 +118,7 @@ impl Quadrotor {
     /// # Returns
     /// A tuple containing the measured acceleration and angular velocity
     pub fn read_imu(&self) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
-        let accel_noise = Normal::new(0.0, 0.02)?;
-        let gyro_noise = Normal::new(0.0, 0.01)?;
+        let (accel_noise, gyro_noise) = (Normal::new(0.0, 0.02)?, Normal::new(0.0, 0.01)?);
         let mut rng = rand::thread_rng();
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let specific_force =
@@ -462,8 +454,7 @@ impl Planner for MinimumJerkLinePlanner {
         _current_velocity: Vector3<f32>,
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
-        let t = (time - self.start_time) / self.duration;
-        let t = t.clamp(0.0, 1.0);
+        let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
         let s = 10.0 * t.powi(3) - 15.0 * t.powi(4) + 6.0 * t.powi(5);
         let s_dot = (30.0 * t.powi(2) - 60.0 * t.powi(3) + 30.0 * t.powi(4)) / self.duration;
         let position = self.start_position + (self.end_position - self.start_position) * s;
@@ -508,8 +499,7 @@ impl Planner for LissajousPlanner {
         _current_velocity: Vector3<f32>,
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
-        let t = (time - self.start_time) / self.duration;
-        let t = t.clamp(0.0, 1.0);
+        let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
         let smooth_start = if t < self.ramp_time / self.duration {
             let t_ramp = t / (self.ramp_time / self.duration);
             t_ramp * t_ramp * (3.0 - 2.0 * t_ramp)
@@ -524,32 +514,14 @@ impl Planner for LissajousPlanner {
         } else {
             1.0
         };
-        let lissajous = Vector3::new(
-            self.amplitude.x
-                * (self.frequency.x * t * 2.0 * std::f32::consts::PI + self.phase.x).sin(),
-            self.amplitude.y
-                * (self.frequency.y * t * 2.0 * std::f32::consts::PI + self.phase.y).sin(),
-            self.amplitude.z
-                * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).sin(),
-        );
+        let ang_pos = self.frequency * t * 2.0 * PI + self.phase;
+        let lissajous = self.amplitude.component_mul(&ang_pos.map(f32::sin));
         let position =
             self.start_position + smooth_start * ((self.center + lissajous) - self.start_position);
         let mut velocity = Vector3::new(
-            self.amplitude.x
-                * self.frequency.x
-                * 2.0
-                * std::f32::consts::PI
-                * (self.frequency.x * t * 2.0 * std::f32::consts::PI + self.phase.x).cos(),
-            self.amplitude.y
-                * self.frequency.y
-                * 2.0
-                * std::f32::consts::PI
-                * (self.frequency.y * t * 2.0 * std::f32::consts::PI + self.phase.y).cos(),
-            self.amplitude.z
-                * self.frequency.z
-                * 2.0
-                * std::f32::consts::PI
-                * (self.frequency.z * t * 2.0 * std::f32::consts::PI + self.phase.z).cos(),
+            self.amplitude.x * self.frequency.x * 2.0 * PI * ang_pos.x.cos(),
+            self.amplitude.y * self.frequency.y * 2.0 * PI * ang_pos.y.cos(),
+            self.amplitude.z * self.frequency.z * 2.0 * PI * ang_pos.z.cos(),
         ) * velocity_ramp
             / self.duration;
         if t < self.ramp_time / self.duration {
@@ -662,7 +634,6 @@ impl Planner for LandingPlanner {
 }
 /// Manages different trajectory planners and switches between them
 struct PlannerManager {
-    /// The currently active planner
     current_planner: PlannerType,
 }
 
@@ -765,14 +736,10 @@ impl Planner for ObstacleAvoidancePlanner {
                     * diff.normalize();
             }
         }
-        // Total force
         let f_total = f_att + f_rep;
-        // Desired velocity (capped at a maximum speed)
         let max_speed: f32 = 1.0;
         let desired_velocity = f_total.normalize() * max_speed.min(f_total.norm());
-        // Desired position (current position + desired velocity)
         let desired_position = current_position + desired_velocity * self.duration * (1.0 - t);
-        // Interpolate yaw
         let desired_yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
         (desired_position, desired_velocity, desired_yaw)
     }
@@ -786,9 +753,6 @@ impl Planner for ObstacleAvoidancePlanner {
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
 /// The planner calculates the coefficients for a minimum snap trajectory
 /// and uses them to generate the desired position, velocity, and yaw
-/// The trajectory is parameterized by time, and the planner interpolates between waypoints
-/// using the calculated coefficients
-/// The planner also supports specifying yaw angles at each waypoint
 /// # Arguments
 /// * `waypoints` - A list of waypoints to follow
 /// * `yaws` - A list of yaw angles at each waypoint
@@ -830,21 +794,17 @@ impl MinimumSnapWaypointPlanner {
         planner.compute_minimum_acceleration_yaw_trajectories()?;
         Ok(planner)
     }
-    /// Compute the coefficients for the minimum snap trajectory
-    /// The coefficients are calculated for each segment between waypoints
-    /// The trajectory is parameterized by time, and the planner interpolates between waypoints
+    /// Compute the coefficients for the minimum snap trajectory, calculated for each segment between waypoints
     fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
-        let n = self.waypoints.len() - 1; // Number of segments
+        let n = self.waypoints.len() - 1;
         for i in 0..n {
             let duration = self.times[i];
             let (start, end) = (self.waypoints[i], self.waypoints[i + 1]);
             let mut a = SMatrix::<f32, 8, 8>::zeros();
             let mut b = SMatrix::<f32, 8, 1>::zeros();
-
             // Start point constraints
             (a[(0, 0)], a[(1, 1)], a[(2, 2)], a[(3, 3)]) = (1.0, 1.0, 2.0, 6.0);
             (b[0], b[4]) = (start.x, end.x);
-
             // End point constraints
             for j in 0..8 {
                 a[(4, j)] = duration.powi(j as i32);
@@ -859,23 +819,19 @@ impl MinimumSnapWaypointPlanner {
                         j as f32 * (j - 1) as f32 * (j - 2) as f32 * duration.powi(j as i32 - 3);
                 }
             }
-
             let x_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for x coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
-
             let mut b_y = b.clone();
             (b_y[0], b_y[4]) = (start.y, end.y);
             let y_coeffs = a.lu().solve(&b_y).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for y coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
-
             let mut b_z = b.clone();
             (b_z[0], b_z[4]) = (start.z, end.z);
             let z_coeffs = a.lu().solve(&b_z).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for z coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
-
             self.coefficients.push(vec![
                 Vector3::new(x_coeffs[0], y_coeffs[0], z_coeffs[0]),
                 Vector3::new(x_coeffs[1], y_coeffs[1], z_coeffs[1]),
@@ -897,15 +853,12 @@ impl MinimumSnapWaypointPlanner {
             let duration = self.times[i];
             let start_yaw = self.yaws[i];
             let end_yaw = self.yaws[i + 1];
-
             let mut a = SMatrix::<f32, 4, 4>::zeros();
             let mut b = SMatrix::<f32, 4, 1>::zeros();
-
             // Start point constraints
             a[(0, 0)] = 1.0;
             a[(1, 1)] = 1.0;
             b[0] = start_yaw;
-
             // End point constraints
             for j in 0..4 {
                 a[(2, j)] = duration.powi(j as i32);
@@ -914,7 +867,6 @@ impl MinimumSnapWaypointPlanner {
                 }
             }
             b[2] = end_yaw;
-
             let yaw_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for yaw coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
@@ -942,7 +894,6 @@ impl MinimumSnapWaypointPlanner {
         let mut velocity = Vector3::zeros();
         let mut yaw = 0.0;
         let mut yaw_rate = 0.0;
-
         for (i, coeff) in coeffs.iter().enumerate() {
             let ti = t.powi(i as i32);
             position += coeff * ti;
@@ -950,7 +901,6 @@ impl MinimumSnapWaypointPlanner {
                 velocity += coeff * (i as f32) * t.powi(i as i32 - 1);
             }
         }
-
         for (i, &coeff) in yaw_coeffs.iter().enumerate() {
             let ti = t.powi(i as i32);
             yaw += coeff * ti;
@@ -958,7 +908,6 @@ impl MinimumSnapWaypointPlanner {
                 yaw_rate += coeff * (i as f32) * t.powi(i as i32 - 1);
             }
         }
-
         (position, velocity, yaw, yaw_rate)
     }
     fn plan(
@@ -968,7 +917,6 @@ impl MinimumSnapWaypointPlanner {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let relative_time = time - self.start_time;
-
         // Find the current segment
         let mut segment_start_time = 0.0;
         let mut current_segment = 0;
@@ -979,7 +927,6 @@ impl MinimumSnapWaypointPlanner {
             }
             segment_start_time += segment_duration;
         }
-
         // Evaluate the polynomial for the current segment
         let segment_time = relative_time - segment_start_time;
         let (position, velocity, yaw, _yaw_rate) = self.evaluate_polynomial(
@@ -987,7 +934,6 @@ impl MinimumSnapWaypointPlanner {
             &self.coefficients[current_segment],
             &self.yaw_coefficients[current_segment],
         );
-
         (position, velocity, yaw)
     }
 
@@ -996,11 +942,10 @@ impl MinimumSnapWaypointPlanner {
         current_position: Vector3<f32>,
         time: f32,
     ) -> Result<bool, SimulationError> {
-        let total_duration: f32 = self.times.iter().sum();
         let last_waypoint = self.waypoints.last().ok_or(SimulationError::OtherError(
             "No waypoints available".to_string(),
         ))?;
-        Ok(time >= self.start_time + total_duration
+        Ok(time >= self.start_time + self.times.iter().sum::<f32>()
             && (current_position - last_waypoint).norm() < 0.1)
     }
 }
@@ -1018,11 +963,12 @@ fn update_planner(
     obstacles: &Vec<Obstacle>,
 ) {
     let step = (step as f32 * 100.0 * quad.time_step) as i32;
+    let current_yaw = quad.orientation.euler_angles().2;
     match step {
         100 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(0.0, 0.0, 1.0),
-            start_yaw: quad.orientation.euler_angles().2,
+            start_yaw: current_yaw,
             end_yaw: 0.0,
             start_time: time,
             duration: 2.5,
@@ -1032,11 +978,11 @@ fn update_planner(
             center: Vector3::new(0.5, 0.5, 1.0),
             amplitude: Vector3::new(0.5, 0.5, 0.2),
             frequency: Vector3::new(1.0, 2.0, 3.0),
-            phase: Vector3::new(0.0, std::f32::consts::PI / 2.0, 0.0),
+            phase: Vector3::new(0.0, FRAC_PI_2, 0.0),
             start_time: time,
             duration: 20.0,
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: quad.orientation.euler_angles().2 + 2.0 * std::f32::consts::PI,
+            start_yaw: current_yaw,
+            end_yaw: current_yaw + 2.0 * PI,
             ramp_time: 5.0,
         })),
         2700 => planner_manager.set_planner(PlannerType::Circle(CirclePlanner {
@@ -1046,14 +992,14 @@ fn update_planner(
             start_position: quad.position,
             start_time: time,
             duration: 8.0,
-            start_yaw: quad.orientation.euler_angles().2,
-            end_yaw: quad.orientation.euler_angles().2,
+            start_yaw: current_yaw,
+            end_yaw: current_yaw,
             ramp_time: 2.0,
         })),
         3700 => planner_manager.set_planner(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
             start_position: quad.position,
             end_position: Vector3::new(quad.position.x, quad.position.y, 0.5),
-            start_yaw: quad.orientation.euler_angles().2,
+            start_yaw: current_yaw,
             end_yaw: 0.0,
             start_time: time,
             duration: 5.0,
@@ -1063,7 +1009,7 @@ fn update_planner(
                 target_position: Vector3::new(1.5, 1.0, 1.0),
                 start_time: time,
                 duration: 10.0,
-                start_yaw: quad.orientation.euler_angles().2,
+                start_yaw: current_yaw,
                 end_yaw: 0.0,
                 obstacles: obstacles.clone(),
                 k_att: 0.03,
@@ -1079,13 +1025,7 @@ fn update_planner(
                 Vector3::new(0.0, -1.0, 1.0),
                 Vector3::new(0.0, 0.0, 0.5),
             ];
-            let yaws = vec![
-                quad.orientation.euler_angles().2,
-                std::f32::consts::PI / 2.0,
-                std::f32::consts::PI,
-                -std::f32::consts::PI / 2.0,
-                0.0,
-            ];
+            let yaws = vec![current_yaw, FRAC_PI_2, PI, -FRAC_PI_2, 0.0];
             let segment_times = vec![5.0, 5.0, 5.0, 5.0];
             match MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, time) {
                 Ok(planner) => {
@@ -1098,7 +1038,7 @@ fn update_planner(
             start_position: quad.position,
             start_time: time,
             duration: 5.0,
-            start_yaw: quad.orientation.euler_angles().2,
+            start_yaw: current_yaw,
         })),
         _ => {}
     }
@@ -1201,7 +1141,6 @@ struct Camera {
     fov: f32,
     near: f32,
     far: f32,
-    tan_half_fov: f32,
     aspect_ratio: f32,
     ray_directions: Vec<Vector3<f32>>,
 }
@@ -1215,8 +1154,7 @@ impl Camera {
     /// * `far` - The far clipping plane of the camera
     fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
         let (width, height) = resolution;
-        let aspect_ratio = width as f32 / height as f32;
-        let tan_half_fov = (fov / 2.0).tan();
+        let (aspect_ratio, tan_half_fov) = (width as f32 / height as f32, (fov / 2.0).tan());
         let mut ray_directions = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
@@ -1230,7 +1168,6 @@ impl Camera {
             fov,
             near,
             far,
-            tan_half_fov,
             aspect_ratio,
             ray_directions,
         }
