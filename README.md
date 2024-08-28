@@ -88,6 +88,19 @@ We chose the name Peng because our pipeline is flexible and can transform to sui
 
 Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
 
+## Line Count
+I would like to thank [tokei](https://github.com/XAMPPRocky/tokei) for providing the line count statistics!
+My goal is to keep the project minimal and easy to understand by keeping the code line count below 1500.
+The markdown lines are used for generating the documentation.
+```markdown
+========================================================
+ Language     Files    Lines     Code Comments   Blanks
+========================================================
+ Rust             1     1270     1233       12       25
+ |- Markdown      1      291        0      291        0
+ (Total)                1561     1233      303       25
+ ```
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=makeecat/Peng&type=Date)](https://star-history.com/#makeecat/Peng&Date)
