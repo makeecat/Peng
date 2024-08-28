@@ -188,18 +188,10 @@ impl Imu {
 }
 /// PID controller for quadrotor position and attitude control
 struct PIDController {
-    /// Proportional gain for position control
-    kp_pos: Vector3<f32>,
-    /// Derivative gain for position control
-    kd_pos: Vector3<f32>,
-    /// Proportional gain for attitude control
-    kp_att: Vector3<f32>,
-    /// Derivative gain for attitude control
-    kd_att: Vector3<f32>,
-    /// Integral gain for position control
-    ki_pos: Vector3<f32>,
-    /// Integral gain for attitude control
-    ki_att: Vector3<f32>,
+    /// PID gain for position control including proportional, derivative, and integral gains
+    kpid_pos: [Vector3<f32>; 3],
+    /// PID gain for attitude control including proportional, derivative, and integral gains
+    kpid_att: [Vector3<f32>; 3],
     /// Accumulated integral error for position
     integral_pos_error: Vector3<f32>,
     /// Accumulated integral error for attitude
@@ -214,12 +206,16 @@ impl PIDController {
     /// Creates a new PIDController with default gains
     fn new() -> Self {
         Self {
-            kp_pos: Vector3::new(7.1, 7.1, 11.9),
-            kd_pos: Vector3::new(2.4, 2.4, 6.7),
-            kp_att: Vector3::new(1.5, 1.5, 1.0),
-            kd_att: Vector3::new(0.13, 0.13, 0.1),
-            ki_pos: Vector3::new(0.00, 0.00, 0.00),
-            ki_att: Vector3::new(0.00, 0.00, 0.00),
+            kpid_pos: [
+                Vector3::new(7.1, 7.1, 11.9), // Proportional gain for position control
+                Vector3::new(2.4, 2.4, 6.7),  // Derivative gain for position control
+                Vector3::zeros(),             // Integral gain for position control
+            ],
+            kpid_att: [
+                Vector3::new(1.5, 1.5, 1.0),   // Proportional gain for attitude control
+                Vector3::new(0.13, 0.13, 0.1), // Derivative gain for attitude control
+                Vector3::zeros(),              // Integral gain for attitude control
+            ],
             integral_pos_error: Vector3::zeros(),
             integral_att_error: Vector3::zeros(),
             max_integral_pos: Vector3::new(10.0, 10.0, 10.0),
@@ -249,9 +245,9 @@ impl PIDController {
             .integral_att_error
             .zip_map(&self.max_integral_att, |int, max| int.clamp(-max, max));
         let error_angular_velocity = -current_angular_velocity; // TODO: Add desired angular velocity
-        self.kp_att.component_mul(&error_angles)
-            + self.kd_att.component_mul(&error_angular_velocity)
-            + self.ki_att.component_mul(&self.integral_att_error)
+        self.kpid_att[0].component_mul(&error_angles)
+            + self.kpid_att[1].component_mul(&error_angular_velocity)
+            + self.kpid_att[2].component_mul(&self.integral_att_error)
     }
     /// Computes position control thrust and desired orientation
     /// # Arguments
@@ -282,9 +278,9 @@ impl PIDController {
         self.integral_pos_error = self
             .integral_pos_error
             .zip_map(&self.max_integral_pos, |int, max| int.clamp(-max, max));
-        let acceleration = self.kp_pos.component_mul(&error_position)
-            + self.kd_pos.component_mul(&error_velocity)
-            + self.ki_pos.component_mul(&self.integral_pos_error);
+        let acceleration = self.kpid_pos[0].component_mul(&error_position)
+            + self.kpid_pos[1].component_mul(&error_velocity)
+            + self.kpid_pos[2].component_mul(&self.integral_pos_error);
         let gravity_compensation = Vector3::new(0.0, 0.0, gravity);
         let total_acceleration = acceleration + gravity_compensation;
         let thrust = mass * total_acceleration.norm();
