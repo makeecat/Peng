@@ -51,9 +51,7 @@ impl Quadrotor {
     /// * Arguments
     /// * `time_step` - The simulation time step in seconds
     pub fn new(time_step: f32) -> Result<Self, SimulationError> {
-        let inertia_matrix = Matrix3::new(
-            0.00304475, 0.0, 0.0, 0.0, 0.00454981, 0.0, 0.0, 0.0, 0.00281995,
-        );
+        let inertia_matrix = Matrix3::new(3.04e-3, 0.0, 0.0, 0.0, 4.55e-3, 0.0, 0.0, 0.0, 2.82e-3);
         let inertia_matrix_inv =
             inertia_matrix
                 .try_inverse()
@@ -301,19 +299,12 @@ impl PIDController {
 }
 /// Enum representing different types of trajectory planners
 enum PlannerType {
-    /// Hover at current position
     Hover(HoverPlanner),
-    /// Minimum jerk trajectory along a straight line
     MinimumJerkLine(MinimumJerkLinePlanner),
-    /// Lissajous curve trajectory
     Lissajous(LissajousPlanner),
-    /// Circular trajectory
     Circle(CirclePlanner),
-    /// Landing trajectory
     Landing(LandingPlanner),
-    /// Obstacle Avoidance Planner based on Potential field
     ObstacleAvoidance(ObstacleAvoidancePlanner),
-    /// Minimum snap waypoint Planner based on Polynomial Trajectory Generation
     MinimumSnapWaypoint(MinimumSnapWaypointPlanner),
 }
 impl PlannerType {
@@ -728,8 +719,6 @@ impl Planner for ObstacleAvoidancePlanner {
 }
 
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
-/// The planner calculates the coefficients for a minimum snap trajectory
-/// and uses them to generate the desired position, velocity, and yaw
 /// # Arguments
 /// * `waypoints` - A list of waypoints to follow
 /// * `yaws` - A list of yaw angles at each waypoint
@@ -778,10 +767,13 @@ impl MinimumSnapWaypointPlanner {
             let duration = self.times[i];
             let (start, end) = (self.waypoints[i], self.waypoints[i + 1]);
             let mut a = SMatrix::<f32, 8, 8>::zeros();
-            let mut b = SMatrix::<f32, 8, 1>::zeros();
+            let mut b_x = SMatrix::<f32, 8, 1>::zeros();
+            let mut b_y = SMatrix::<f32, 8, 1>::zeros();
+            let mut b_z = SMatrix::<f32, 8, 1>::zeros();
             // Start point constraints
             (a[(0, 0)], a[(1, 1)], a[(2, 2)], a[(3, 3)]) = (1.0, 1.0, 2.0, 6.0);
-            (b[0], b[4]) = (start.x, end.x);
+            (b_x[0], b_x[4], b_y[0], b_y[4], b_z[0], b_z[4]) =
+                (start.x, end.x, start.y, end.y, start.z, end.z);
             // End point constraints
             for j in 0..8 {
                 a[(4, j)] = duration.powi(j as i32);
@@ -796,16 +788,12 @@ impl MinimumSnapWaypointPlanner {
                         j as f32 * (j - 1) as f32 * (j - 2) as f32 * duration.powi(j as i32 - 3);
                 }
             }
-            let x_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
+            let x_coeffs = a.lu().solve(&b_x).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for x coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
-            let mut b_y = b.clone();
-            (b_y[0], b_y[4]) = (start.y, end.y);
             let y_coeffs = a.lu().solve(&b_y).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for y coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
-            let mut b_z = b.clone();
-            (b_z[0], b_z[4]) = (start.z, end.z);
             let z_coeffs = a.lu().solve(&b_z).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for z coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
