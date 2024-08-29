@@ -15,7 +15,7 @@ categories = [
     "aerospace::unmanned-aerial-vehicles",
     "algorithms",
 ]
-keywords = ["quadrotor", "quadcopter", "robotics", "uav", "minimal", "simulation"]
+keywords = ["quadrotor", "quadcopter", "robotics", "drone", "simulation"]
 readme = "README.md"
 
 [dependencies]
