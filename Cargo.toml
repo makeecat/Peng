@@ -25,3 +25,6 @@ rand_distr = "0.4.3"
 rerun = "0.18.0"
 ndarray = "0.15.6"
 thiserror = "1.0.63"
+serde = { version = "1.0.209", features = ["derive"] }
+serde_yaml = "0.9.34"
+lazy_static = "1.5.0"

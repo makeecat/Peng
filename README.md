@@ -93,12 +93,23 @@ I would like to thank [tokei](https://github.com/XAMPPRocky/tokei) for providing
 My goal is to keep the project minimal and easy to understand by keeping the code line count below 1500.
 The markdown lines are used for generating the documentation.
 ```markdown
-========================================================
- Language     Files    Lines     Code Comments   Blanks
-========================================================
- Rust             1     1270     1233       12       25
- |- Markdown      1      291        0      291        0
- (Total)                1561     1233      303       25
+===============================================================================
+Language            Files        Lines         Code     Comments       Blanks
+===============================================================================
+SVG                     1            1            1            0            0
+TOML                    1           30           29            0            1
+YAML                    1           93           86            0            7
+-------------------------------------------------------------------------------
+Markdown                4          274            0          210           64
+|- Markdown             1           17            0           17            0
+(Total)                            291            0          227           64
+-------------------------------------------------------------------------------
+Rust                    3         1542         1491           13           38
+|- Markdown             2          301            0          301            0
+(Total)                           1843         1491          314           38
+===============================================================================
+Total                  10         1940         1607          223          110
+===============================================================================
  ```
 
 ## Star History
