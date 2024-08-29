@@ -17,14 +17,14 @@ rerun
 terminal 2
 ```
 cargo install peng_quad
-peng_quad
+peng_quad config/quad.yaml
 ```
 Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
 
 If you want to build from latest source
 ```
 git clone https://github.com/makeecat/Peng.git
-cargo run --release
+cargo run --release config/quad.yaml
 ```
 
 ## Overview
