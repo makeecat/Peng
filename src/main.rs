@@ -55,18 +55,15 @@ fn main() -> Result<(), SimulationError> {
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
     let mut i = 0;
-    let planner_config = PlannerConfig {
-        steps: config
-            .planner_schedule
-            .steps
-            .iter()
-            .map(|step| PlannerStepConfig {
-                step: step.step,
-                planner_type: step.planner_type.clone(),
-                params: step.params.clone(),
-            })
-            .collect(),
-    };
+    let planner_config = config
+        .planner_schedule
+        .iter()
+        .map(|step| PlannerStepConfig {
+            step: step.step,
+            planner_type: step.planner_type.clone(),
+            params: step.params.clone(),
+        })
+        .collect();
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);

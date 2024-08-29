@@ -1,9 +1,4 @@
-use serde::Deserialize;
-use serde_yaml::Value;
-use std::fs::File;
-use std::io::Read;
-
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct Config {
     pub simulation: SimulationConfig,
     pub quadrotor: QuadrotorConfig,
@@ -12,21 +7,17 @@ pub struct Config {
     pub maze: MazeConfig,
     pub camera: CameraConfig,
     pub mesh: MeshConfig,
-    pub planner_schedule: PlannerScheduleConfig,
+    pub planner_schedule: Vec<PlannerStep>,
 }
 
-#[derive(Deserialize)]
-pub struct PlannerScheduleConfig {
-    pub steps: Vec<PlannerStep>,
-}
-
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct PlannerStep {
     pub step: usize,
     pub planner_type: String,
-    pub params: Value,
+    pub params: serde_yaml::Value,
 }
-#[derive(Deserialize)]
+
+#[derive(serde::Deserialize)]
 pub struct SimulationConfig {
     pub control_frequency: f32,
     pub simulation_frequency: f32,
@@ -34,7 +25,7 @@ pub struct SimulationConfig {
     pub duration: f32,
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct QuadrotorConfig {
     pub mass: f32,
     pub gravity: f32,
@@ -42,7 +33,7 @@ pub struct QuadrotorConfig {
     pub inertia_matrix: [f32; 9],
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct ControllerConfig {
     pub pos_gains: PIDGains,
     pub att_gains: PIDGains,
@@ -50,28 +41,28 @@ pub struct ControllerConfig {
     pub att_max_int: [f32; 3],
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct PIDGains {
     pub kp: [f32; 3],
     pub ki: [f32; 3],
     pub kd: [f32; 3],
 }
 
-#[derive(Deserialize, Default)]
+#[derive(serde::Deserialize, Default)]
 pub struct ImuConfig {
     pub accel_noise_std: f32,
     pub gyro_noise_std: f32,
     pub bias_instability: f32,
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct MazeConfig {
     pub upper_bounds: [f32; 3],
     pub lower_bounds: [f32; 3],
     pub num_obstacles: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct CameraConfig {
     pub resolution: (usize, usize),
     pub fov: f32,
@@ -79,15 +70,15 @@ pub struct CameraConfig {
     pub far: f32,
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct MeshConfig {
     pub division: usize,
     pub spacing: f32,
 }
+
 impl Config {
     pub fn from_yaml(filename: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut contents = String::new();
-        File::open(filename)?.read_to_string(&mut contents)?;
+        let contents = std::fs::read_to_string(filename)?;
         Ok(serde_yaml::from_str(&contents)?)
     }
 }

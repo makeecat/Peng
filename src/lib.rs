@@ -8,11 +8,8 @@
 //! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
 //! - PID controller for position and attitude control
 //! - Integration with the `rerun` crate for visualization
-#[macro_use]
-extern crate lazy_static;
 use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
-use std::collections::HashMap;
 use std::f32::consts::PI;
 #[derive(thiserror::Error, Debug)]
 pub enum SimulationError {
@@ -24,23 +21,6 @@ pub enum SimulationError {
     NormalError(#[from] rand_distr::NormalError),
     #[error("Other error: {0}")]
     OtherError(String),
-}
-type PlannerCreationFn =
-    fn(&PlannerStepConfig, &Quadrotor, f32, &Vec<Obstacle>) -> Result<PlannerType, SimulationError>;
-lazy_static! {
-    static ref PLANNER_CREATORS: HashMap<String, PlannerCreationFn> = {
-        vec![
-            ("MinimumJerkLine", create_planner as PlannerCreationFn),
-            ("Lissajous", create_planner as PlannerCreationFn),
-            ("Circle", create_planner as PlannerCreationFn),
-            ("ObstacleAvoidance", create_planner as PlannerCreationFn),
-            ("MinimumSnapWaypoint", create_planner as PlannerCreationFn),
-            ("Landing", create_planner as PlannerCreationFn),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
-        .collect()
-    };
 }
 /// Represents a quadrotor with its physical properties and state
 pub struct Quadrotor {
@@ -918,11 +898,6 @@ pub struct PlannerStepConfig {
     pub planner_type: String,
     pub params: serde_yaml::Value,
 }
-
-#[derive(Clone)]
-pub struct PlannerConfig {
-    pub steps: Vec<PlannerStepConfig>,
-}
 /// Updates the planner based on the current simulation step and configuration
 /// # Arguments
 /// * `planner_manager` - The PlannerManager instance to update
@@ -937,15 +912,11 @@ pub fn update_planner(
     time: f32,
     quad: &Quadrotor,
     obstacles: &Vec<Obstacle>,
-    planner_config: &PlannerConfig,
+    planner_config: &Vec<PlannerStepConfig>,
 ) -> Result<(), SimulationError> {
-    if let Some(planner_step) = planner_config.steps.iter().find(|s| s.step == step) {
+    if let Some(planner_step) = planner_config.iter().find(|s| s.step == step) {
         println!("[INFO] Step: {}, {}", step, planner_step.planner_type);
-        if let Some(creator_fn) = PLANNER_CREATORS.get(&planner_step.planner_type) {
-            planner_manager.set_planner(creator_fn(planner_step, quad, time, obstacles)?);
-        } else {
-            println!("[WARNING] Unknown type: {}", planner_step.planner_type);
-        }
+        planner_manager.set_planner(create_planner(planner_step, quad, time, obstacles)?);
     }
     Ok(())
 }
@@ -965,77 +936,48 @@ fn create_planner(
 ) -> Result<PlannerType, SimulationError> {
     let params = &step.params;
     match step.planner_type.as_str() {
-        "MinimumJerkLine" => {
-            let end_position = parse_vector3(params, "end_position")?;
-            let end_yaw = parse_f32(params, "end_yaw")?;
-            let duration = parse_f32(params, "duration")?;
-            Ok(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
-                start_position: quad.position,
-                end_position,
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw,
-                start_time: time,
-                duration,
-            }))
-        }
-        "Lissajous" => {
-            let center = parse_vector3(params, "center")?;
-            let amplitude = parse_vector3(params, "amplitude")?;
-            let frequency = parse_vector3(params, "frequency")?;
-            let phase = parse_vector3(params, "phase")?;
-            let duration = parse_f32(params, "duration")?;
-            let end_yaw = parse_f32(params, "end_yaw")?;
-            let ramp_time = parse_f32(params, "ramp_time")?;
-            Ok(PlannerType::Lissajous(LissajousPlanner {
-                start_position: quad.position,
-                center,
-                amplitude,
-                frequency,
-                phase,
-                start_time: time,
-                duration,
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw,
-                ramp_time,
-            }))
-        }
-        "Circle" => {
-            let center = parse_vector3(params, "center")?;
-            let radius = parse_f32(params, "radius")?;
-            let angular_velocity = parse_f32(params, "angular_velocity")?;
-            let duration = parse_f32(params, "duration")?;
-            let ramp_time = parse_f32(params, "ramp_time")?;
-            Ok(PlannerType::Circle(CirclePlanner {
-                center,
-                radius,
-                angular_velocity,
-                start_position: quad.position,
-                start_time: time,
-                duration,
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw: quad.orientation.euler_angles().2,
-                ramp_time,
-            }))
-        }
-        "ObstacleAvoidance" => {
-            let target_position = parse_vector3(params, "target_position")?;
-            let duration = parse_f32(params, "duration")?;
-            let end_yaw = parse_f32(params, "end_yaw")?;
-            let k_att = parse_f32(params, "k_att")?;
-            let k_rep = parse_f32(params, "k_rep")?;
-            let d0 = parse_f32(params, "d0")?;
-            Ok(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
-                target_position,
-                start_time: time,
-                duration,
-                start_yaw: quad.orientation.euler_angles().2,
-                end_yaw,
-                obstacles: obstacles.clone(),
-                k_att,
-                k_rep,
-                d0,
-            }))
-        }
+        "MinimumJerkLine" => Ok(PlannerType::MinimumJerkLine(MinimumJerkLinePlanner {
+            start_position: quad.position,
+            end_position: parse_vector3(params, "end_position")?,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: parse_f32(params, "end_yaw")?,
+            start_time: time,
+            duration: parse_f32(params, "duration")?,
+        })),
+        "Lissajous" => Ok(PlannerType::Lissajous(LissajousPlanner {
+            start_position: quad.position,
+            center: parse_vector3(params, "center")?,
+            amplitude: parse_vector3(params, "amplitude")?,
+            frequency: parse_vector3(params, "frequency")?,
+            phase: parse_vector3(params, "phase")?,
+            start_time: time,
+            duration: parse_f32(params, "duration")?,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: parse_f32(params, "end_yaw")?,
+            ramp_time: parse_f32(params, "ramp_time")?,
+        })),
+        "Circle" => Ok(PlannerType::Circle(CirclePlanner {
+            center: parse_vector3(params, "center")?,
+            radius: parse_f32(params, "radius")?,
+            angular_velocity: parse_f32(params, "angular_velocity")?,
+            start_position: quad.position,
+            start_time: time,
+            duration: parse_f32(params, "duration")?,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: quad.orientation.euler_angles().2,
+            ramp_time: parse_f32(params, "ramp_time")?,
+        })),
+        "ObstacleAvoidance" => Ok(PlannerType::ObstacleAvoidance(ObstacleAvoidancePlanner {
+            target_position: parse_vector3(params, "target_position")?,
+            start_time: time,
+            duration: parse_f32(params, "duration")?,
+            start_yaw: quad.orientation.euler_angles().2,
+            end_yaw: parse_f32(params, "end_yaw")?,
+            obstacles: obstacles.clone(),
+            k_att: parse_f32(params, "k_att")?,
+            k_rep: parse_f32(params, "k_rep")?,
+            d0: parse_f32(params, "d0")?,
+        })),
         "MinimumSnapWaypoint" => {
             let mut waypoints = vec![quad.position];
             waypoints.extend(
@@ -1084,15 +1026,12 @@ fn create_planner(
             MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, time)
                 .map(PlannerType::MinimumSnapWaypoint)
         }
-        "Landing" => {
-            let duration = parse_f32(params, "duration")?;
-            Ok(PlannerType::Landing(LandingPlanner {
-                start_position: quad.position,
-                start_time: time,
-                duration,
-                start_yaw: quad.orientation.euler_angles().2,
-            }))
-        }
+        "Landing" => Ok(PlannerType::Landing(LandingPlanner {
+            start_position: quad.position,
+            start_time: time,
+            duration: parse_f32(params, "duration")?,
+            start_yaw: quad.orientation.euler_angles().2,
+        })),
         _ => Err(SimulationError::OtherError(format!(
             "Unknown planner type: {}",
             step.planner_type
