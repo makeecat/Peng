@@ -2,7 +2,9 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/makeecat/peng)
 ![](https://img.shields.io/badge/Rust-1.80+-orange.svg)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/makeecat/Peng#license)
-[![Docs](https://github.com/makeecat/Peng/actions/workflows/docs.yml/badge.svg)](https://makeecat.github.io/Peng/)
+[![Crates.io](https://img.shields.io/crates/v/peng_quad.svg)](https://crates.io/crates/peng_quad)
+[![Downloads](https://img.shields.io/crates/d/peng_quad.svg)](https://crates.io/crates/peng_quad)
+[![Docs](https://docs.rs/peng_quad/badge.svg)](https://docs.rs/peng_quad/latest/peng_quad/)
 [![CI](https://github.com/makeecat/Peng/actions/workflows/CI.yml/badge.svg)](https://github.com/makeecat/Peng/actions/workflows/CI.yml)
 [![dependency status](https://deps.rs/repo/github/makeecat/peng/status.svg)](https://deps.rs/repo/github/makeecat/peng)
 ## What is Peng
@@ -26,6 +28,8 @@ If you want to build from latest source
 git clone https://github.com/makeecat/Peng.git
 cargo run --release config/quad.yaml
 ```
+
+You can configure the simulation through config file, see quad.yaml for example.
 
 ## Overview
 
@@ -65,9 +69,6 @@ Logs comprehensive simulation data including quadrotor state, desired positions,
 - [ ] Environment Effect simulation such as wind field
 - [ ] Add motor speed simulation
 - [ ] MPC controller
-- [ ] Advanced obstacle avoidance planner such as RRT*
-- [ ] Dynamic Maze generation
-- [ ] Modularize the pipeline
 
 ## License
 

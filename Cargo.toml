@@ -1,6 +1,6 @@
 [package]
 name = "peng_quad"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.76"
 authors = ["Yang Zhou <yangzhou.info@gmail.com>"]
@@ -15,7 +15,7 @@ categories = [
     "aerospace::unmanned-aerial-vehicles",
     "algorithms",
 ]
-keywords = ["quadrotor", "uav", "minimal", "simulation"]
+keywords = ["quadrotor", "quadcopter", "robotics", "uav", "minimal", "simulation"]
 readme = "README.md"
 
 [dependencies]
