@@ -1,11 +1,14 @@
 use nalgebra::Vector3;
 use std::env;
-
 mod config;
 use config::Config;
 use peng_quad::*;
-/// Main function to run the quadrotor simulation
 fn main() -> Result<(), SimulationError> {
+    env_logger::builder()
+        .format_target(false)
+        .format_module_path(false)
+        .parse_env(env_logger::Env::default().default_filter_or("info"))
+        .init();
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         return Err(SimulationError::OtherError(format!(
@@ -34,7 +37,7 @@ fn main() -> Result<(), SimulationError> {
         config.imu.gyro_noise_std,
         config.imu.bias_instability,
     );
-    println!("Please start a rerun-cli in another terminal.\n1. cargo install rerun-cli.\n2. rerun\n\n[INFO] Waiting for connection to rerun...");
+    log::info!("Please start a rerun-cli in another terminal.\n> cargo install rerun-cli.\n> rerun\nWaiting for connection to rerun...");
     let rec = rerun::RecordingStreamBuilder::new("Peng").connect()?;
     let upper_bounds = Vector3::from(config.maze.upper_bounds);
     let lower_bounds = Vector3::from(config.maze.lower_bounds);
@@ -140,7 +143,7 @@ fn main() -> Result<(), SimulationError> {
         }
         i += 1;
         if time >= config.simulation.duration {
-            println!("[INFO] Simulation complete");
+            log::info!("Time: {:.2} s,\tSimulation complete", time);
             break;
         }
     }

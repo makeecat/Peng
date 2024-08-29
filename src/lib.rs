@@ -385,7 +385,7 @@ impl Planner for HoverPlanner {
     }
 
     fn is_finished(&self, _current_position: Vector3<f32>, _time: f32) -> bool {
-        true // Hover planner is always "finished" as it's the default state
+        false // Hover planner never "finished"
     }
 }
 /// Planner for minimum jerk trajectories along a straight line
@@ -633,6 +633,7 @@ impl PlannerManager {
         obstacles: &Vec<Obstacle>,
     ) -> Result<(Vector3<f32>, Vector3<f32>, f32), SimulationError> {
         if self.current_planner.is_finished(current_position, time)? {
+            log::info!("Time: {:.2} ,\tSwitch Hover", time);
             self.current_planner = PlannerType::Hover(HoverPlanner {
                 target_position: current_position,
                 target_yaw: current_orientation.euler_angles().2,
@@ -915,7 +916,7 @@ pub fn update_planner(
     planner_config: &Vec<PlannerStepConfig>,
 ) -> Result<(), SimulationError> {
     if let Some(planner_step) = planner_config.iter().find(|s| s.step == step) {
-        println!("[INFO] Step: {}, {}", step, planner_step.planner_type);
+        log::info!("Time: {:.2} s,\tSwitch {}", time, planner_step.planner_type);
         planner_manager.set_planner(create_planner(planner_step, quad, time, obstacles)?);
     }
     Ok(())
