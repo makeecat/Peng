@@ -633,7 +633,7 @@ impl PlannerManager {
         obstacles: &Vec<Obstacle>,
     ) -> Result<(Vector3<f32>, Vector3<f32>, f32), SimulationError> {
         if self.current_planner.is_finished(current_position, time)? {
-            log::info!("Time: {:.2} ,\tSwitch Hover", time);
+            log::info!("Time: {:.2} s,\tSwitch Hover", time);
             self.current_planner = PlannerType::Hover(HoverPlanner {
                 target_position: current_position,
                 target_yaw: current_orientation.euler_angles().2,

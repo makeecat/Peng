@@ -67,6 +67,7 @@ fn main() -> Result<(), SimulationError> {
             params: step.params.clone(),
         })
         .collect();
+    log::info!("Starting simulation...");
     loop {
         let time = quad.time_step * i as f32;
         rec.set_time_seconds("timestamp", time);
@@ -143,7 +144,7 @@ fn main() -> Result<(), SimulationError> {
         }
         i += 1;
         if time >= config.simulation.duration {
-            log::info!("Time: {:.2} s,\tSimulation complete", time);
+            log::info!("Complete Simulation");
             break;
         }
     }
