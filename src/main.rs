@@ -5,18 +5,18 @@ use config::Config;
 use peng_quad::*;
 fn main() -> Result<(), SimulationError> {
     env_logger::builder()
-        .format_target(false)
-        .format_module_path(false)
         .parse_env(env_logger::Env::default().default_filter_or("info"))
         .init();
+    let mut config_str = "config/quad.yaml";
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        return Err(SimulationError::OtherError(format!(
-            "Usage: {} <config.yaml>",
-            args[0]
-        )));
+        log::warn!("Usage: {} <config.yaml>.", args[0]);
+        log::warn!("Loading default configuration: config/quad.yaml");
+    } else {
+        log::info!("Loading configuration: {}", args[1]);
+        config_str = &args[1];
     }
-    let config = Config::from_yaml(&args[1]).expect("Failed to load configuration");
+    let config = Config::from_yaml(config_str).expect("Failed to load configuration");
     let mut quad = Quadrotor::new(
         1.0 / config.simulation.simulation_frequency,
         config.quadrotor.mass,
@@ -37,8 +37,6 @@ fn main() -> Result<(), SimulationError> {
         config.imu.gyro_noise_std,
         config.imu.bias_instability,
     );
-    log::info!("Please start a rerun-cli in another terminal.\n> cargo install rerun-cli.\n> rerun\nWaiting for connection to rerun...");
-    let rec = rerun::RecordingStreamBuilder::new("Peng").connect()?;
     let upper_bounds = Vector3::from(config.maze.upper_bounds);
     let lower_bounds = Vector3::from(config.maze.lower_bounds);
     let mut maze = Maze::new(lower_bounds, upper_bounds, config.maze.num_obstacles);
@@ -51,13 +49,8 @@ fn main() -> Result<(), SimulationError> {
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
-    rec.set_time_seconds("timestamp", 0);
-    log_mesh(&rec, config.mesh.division, config.mesh.spacing)?;
-    log_maze_tube(&rec, &maze)?;
-    log_maze_obstacles(&rec, &maze)?;
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
-    let mut i = 0;
     let planner_config = config
         .planner_schedule
         .iter()
@@ -67,10 +60,23 @@ fn main() -> Result<(), SimulationError> {
             params: step.params.clone(),
         })
         .collect();
+    log::info!("Use rerun.io: {}", config.use_rerun);
+    let rec = if config.use_rerun {
+        rerun::spawn(&rerun::SpawnOptions::default())?;
+        Some(rerun::RecordingStreamBuilder::new("Peng").connect()?)
+    } else {
+        None
+    };
+    if let Some(rec) = &rec {
+        rec.set_time_seconds("timestamp", 0);
+        log_mesh(&rec, config.mesh.division, config.mesh.spacing)?;
+        log_maze_tube(&rec, &maze)?;
+        log_maze_obstacles(&rec, &maze)?;
+    }
     log::info!("Starting simulation...");
+    let mut i = 0;
     loop {
         let time = quad.time_step * i as f32;
-        rec.set_time_seconds("timestamp", time);
         maze.update_obstacles(quad.time_step);
         update_planner(
             &mut planner_manager,
@@ -120,27 +126,30 @@ fn main() -> Result<(), SimulationError> {
             / config.simulation.log_frequency as usize)
             == 0
         {
-            if trajectory.add_point(quad.position) {
-                log_trajectory(&rec, &trajectory)?;
+            if let Some(rec) = &rec {
+                rec.set_time_seconds("timestamp", time);
+                if trajectory.add_point(quad.position) {
+                    log_trajectory(&rec, &trajectory)?;
+                }
+                log_data(
+                    &rec,
+                    &quad,
+                    &desired_position,
+                    &desired_velocity,
+                    &_measured_accel,
+                    &_measured_gyro,
+                )?;
+                camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer)?;
+                log_depth_image(
+                    &rec,
+                    &depth_buffer,
+                    camera.resolution.0,
+                    camera.resolution.1,
+                    camera.near,
+                    camera.far,
+                )?;
+                log_maze_obstacles(&rec, &maze)?;
             }
-            log_data(
-                &rec,
-                &quad,
-                &desired_position,
-                &desired_velocity,
-                &_measured_accel,
-                &_measured_gyro,
-            )?;
-            camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer)?;
-            log_depth_image(
-                &rec,
-                &depth_buffer,
-                camera.resolution.0,
-                camera.resolution.1,
-                camera.near,
-                camera.far,
-            )?;
-            log_maze_obstacles(&rec, &maze)?;
         }
         i += 1;
         if time >= config.simulation.duration {

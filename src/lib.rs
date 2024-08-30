@@ -15,6 +15,8 @@ use std::f32::consts::PI;
 pub enum SimulationError {
     #[error("Rerun error: {0}")]
     RerunError(#[from] rerun::RecordingStreamError),
+    #[error("Rerun spawn error: {0}")]
+    RerunSpawnError(#[from] rerun::SpawnError),
     #[error("Nalgebra error: {0}")]
     NalgebraError(String),
     #[error("Normal error: {0}")]

@@ -8,6 +8,7 @@ pub struct Config {
     pub camera: CameraConfig,
     pub mesh: MeshConfig,
     pub planner_schedule: Vec<PlannerStep>,
+    pub use_rerun: bool,
 }
 
 #[derive(serde::Deserialize)]

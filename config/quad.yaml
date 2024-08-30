@@ -1,3 +1,5 @@
+use_rerun: true
+
 simulation:
   control_frequency: 200.0
   simulation_frequency: 1000.0

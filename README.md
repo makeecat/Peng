@@ -11,26 +11,24 @@
 Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
 ![demo](assets/Peng_demo.gif)
 ## Getting Started
-terminal 1
-```
+
+### Installation from Crates.io
+```bash
 cargo install rerun-cli
-rerun
-```
-terminal 2
-```
 cargo install peng_quad
 peng_quad config/quad.yaml
 ```
-Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
 
-If you want to build from latest source
-```
-git clone https://github.com/makeecat/Peng.git
+### Installation from Source
+```bash
+cargo install rerun-cli
+git clone https://github.com/makeecat/Peng.git && cd Peng
 cargo run --release config/quad.yaml
 ```
 
-You can configure the simulation through config file, see quad.yaml for example.
+You can configure the simulation through config file, see [quad.yaml](config/quad.yaml) for example.
 
+Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
 ## Overview
 
 ### Quadrotor Simulator
@@ -96,20 +94,19 @@ The markdown lines are used for generating the documentation.
 ```markdown
 ===============================================================================
  Language            Files        Lines         Code     Comments       Blanks
-===============================================================================
- SVG                     1            1            1            0            0
+ SVG                     2          492          480            0           12
  TOML                    1           31           30            0            1
- YAML                    1           92           85            0            7
+ YAML                    1           94           86            0            8
 -------------------------------------------------------------------------------
- Markdown                4          274            0          210           64
+ Markdown                4          273            0          207           66
  |- Markdown             1           17            0           17            0
- (Total)                            291            0          227           64
+ (Total)                            290            0          224           66
 -------------------------------------------------------------------------------
- Rust                    3         1475         1426           13           36
+ Rust                    3         1487         1438           13           36
  |- Markdown             1          300            0          300            0
- (Total)                           1775         1426          313           36
+ (Total)                           1787         1438          313           36
 ===============================================================================
- Total                  10         1873         1542          223          108
+ Total                  11         2377         2034          220          123
 ===============================================================================
  ```
 
