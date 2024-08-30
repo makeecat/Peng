@@ -1,6 +1,6 @@
 [package]
 name = "peng_quad"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 rust-version = "1.76"
 authors = ["Yang Zhou <yangzhou.info@gmail.com>"]
