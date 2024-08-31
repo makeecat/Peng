@@ -131,7 +131,7 @@ pub struct MeshConfig {
     /// Spacing between the squares in meters
     pub spacing: f32,
 }
-
+/// Implementation of the Config struct
 impl Config {
     /// Load configuration from a YAML file.
     /// # Arguments

@@ -53,7 +53,7 @@ pub struct Quadrotor {
     /// Inverse of the inertia matrix
     pub inertia_matrix_inv: Matrix3<f32>,
 }
-
+/// Implementation of the Quadrotor struct
 impl Quadrotor {
     /// Creates a new Quadrotor with default parameters
     /// # Arguments
@@ -142,7 +142,7 @@ pub struct Imu {
     /// Standard deviation of gyroscope bias drift
     pub gyro_bias_std: f32,
 }
-
+/// Implements the IMU
 impl Imu {
     /// Creates a new IMU with default parameters
     /// # Arguments
@@ -222,7 +222,7 @@ pub struct PIDController {
     /// Maximum allowed integral error for attitude
     pub max_integral_att: Vector3<f32>,
 }
-
+/// Implementation of PIDController
 impl PIDController {
     /// Creates a new PIDController with default gains
     /// gains are in the order of proportional, derivative, and integral
@@ -342,6 +342,7 @@ pub enum PlannerType {
     /// Minimum snap waypoint planner
     MinimumSnapWaypoint(MinimumSnapWaypointPlanner),
 }
+/// Implementation of the planner type
 impl PlannerType {
     /// Plans the trajectory based on the current planner type
     /// # Arguments
@@ -403,7 +404,6 @@ pub trait Planner {
         current_velocity: Vector3<f32>,
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32);
-
     /// Checks if the current trajectory is finished
     /// # Arguments
     /// * `current_position` - The current position of the quadrotor
@@ -423,7 +423,7 @@ pub struct HoverPlanner {
     /// Target yaw angle for hovering
     pub target_yaw: f32,
 }
-
+/// Implementation of the `Planner` trait for the `HoverPlanner`
 impl Planner for HoverPlanner {
     fn plan(
         &self,
@@ -457,7 +457,7 @@ pub struct MinimumJerkLinePlanner {
     /// Duration of the trajectory
     pub duration: f32,
 }
-
+/// Implementation of the planner trait for minimum jerk line planner
 impl Planner for MinimumJerkLinePlanner {
     fn plan(
         &self,
@@ -506,7 +506,7 @@ pub struct LissajousPlanner {
     /// Ramp-up time for smooth transitions
     pub ramp_time: f32,
 }
-
+/// Implementation of the planner trait for Lissajous curve trajectories
 impl Planner for LissajousPlanner {
     fn plan(
         &self,
@@ -578,7 +578,7 @@ pub struct CirclePlanner {
     /// Ramp-up time for smooth transitions
     pub ramp_time: f32,
 }
-
+/// Implementation of the Planner trait for CirclePlanner
 impl Planner for CirclePlanner {
     fn plan(
         &self,
@@ -624,7 +624,6 @@ impl Planner for CirclePlanner {
         Ok(time >= self.start_time + self.duration)
     }
 }
-
 /// Planner for landing maneuvers
 pub struct LandingPlanner {
     /// Starting position of the landing maneuver
@@ -636,7 +635,7 @@ pub struct LandingPlanner {
     /// Starting yaw angle
     pub start_yaw: f32,
 }
-
+/// Implementation of the Planner trait for LandingPlanner
 impl Planner for LandingPlanner {
     fn plan(
         &self,
@@ -661,9 +660,10 @@ impl Planner for LandingPlanner {
 }
 /// Manages different trajectory planners and switches between them
 pub struct PlannerManager {
+    /// The current planner
     pub current_planner: PlannerType,
 }
-
+/// Implementation of the PlannerManager
 impl PlannerManager {
     /// Creates a new PlannerManager with an initial hover planner
     /// # Arguments
@@ -749,7 +749,7 @@ pub struct ObstacleAvoidancePlanner {
     /// Maximum speed of the quadrotor
     pub max_speed: f32,
 }
-
+/// Implementation of the Planner trait for ObstacleAvoidancePlanner
 impl Planner for ObstacleAvoidancePlanner {
     fn plan(
         &self,
@@ -793,7 +793,7 @@ impl Planner for ObstacleAvoidancePlanner {
             && time >= self.start_time + self.duration)
     }
 }
-
+/// Implementation of the ObstacleAvoidancePlanner
 impl ObstacleAvoidancePlanner {
     /// A smooth attractive force function that transitions from linear to exponential decay
     /// When the distance to the target is less than the target distance, the force is linear
@@ -826,7 +826,7 @@ pub struct MinimumSnapWaypointPlanner {
     /// Start time of the trajectory
     pub start_time: f32,
 }
-
+/// Implementation of the MinimumSnapWaypointPlanner
 impl MinimumSnapWaypointPlanner {
     /// Generate a new minimum snap waypoint planner
     /// # Arguments
@@ -964,7 +964,7 @@ impl MinimumSnapWaypointPlanner {
         (position, velocity, yaw, yaw_rate)
     }
 }
-
+/// Implement the `Planner` trait for `MinimumSnapWaypointPlanner`
 impl Planner for MinimumSnapWaypointPlanner {
     fn plan(
         &self,
@@ -1186,7 +1186,6 @@ pub fn parse_vector3(
         })
         .ok_or_else(|| SimulationError::OtherError(format!("Invalid {} vector", key)))
 }
-
 // Helper function to parse f32 from YAML
 // # Arguments
 // * `value` - YAML value
@@ -1211,7 +1210,7 @@ pub struct Obstacle {
     /// The radius of the obstacle
     pub radius: f32,
 }
-
+/// Implementation of the Obstacle
 impl Obstacle {
     /// Creates a new obstacle with the given position, velocity, and radius
     /// # Arguments
@@ -1241,6 +1240,7 @@ pub struct Maze {
     /// The bounds of the obstacles' radius
     pub obstacles_radius_bounds: [f32; 2],
 }
+/// Implementation of the maze
 impl Maze {
     /// Creates a new maze with the given bounds and number of obstacles
     /// # Arguments
@@ -1321,7 +1321,7 @@ pub struct Camera {
     /// The ray directions of each pixel in the camera
     pub ray_directions: Vec<Vector3<f32>>,
 }
-
+/// Implementation of the camera
 impl Camera {
     /// Creates a new camera with the given resolution, field of view, near and far clipping planes
     /// # Arguments
@@ -1556,7 +1556,7 @@ pub struct Trajectory {
     /// The minimum distance between points to log
     pub min_distance_threadhold: f32,
 }
-
+/// Implement the Trajectory struct
 impl Trajectory {
     /// Create a new Trajectory instance
     /// # Arguments
