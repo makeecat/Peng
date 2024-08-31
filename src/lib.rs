@@ -12,15 +12,21 @@ use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
 #[derive(thiserror::Error, Debug)]
+/// Represents errors that can occur during simulation
 pub enum SimulationError {
+    /// Error related to Rerun visualization
     #[error("Rerun error: {0}")]
     RerunError(#[from] rerun::RecordingStreamError),
+    /// Error related to Rerun spawn process
     #[error("Rerun spawn error: {0}")]
     RerunSpawnError(#[from] rerun::SpawnError),
+    /// Error related to linear algebra operations
     #[error("Nalgebra error: {0}")]
     NalgebraError(String),
+    /// Error related to normal distribution calculations
     #[error("Normal error: {0}")]
     NormalError(#[from] rand_distr::NormalError),
+    /// Other general errors
     #[error("Other error: {0}")]
     OtherError(String),
 }
@@ -50,16 +56,24 @@ pub struct Quadrotor {
 
 impl Quadrotor {
     /// Creates a new Quadrotor with default parameters
-    /// * Arguments
+    /// # Arguments
     /// * `time_step` - The simulation time step in seconds
+    /// * `mass` - The mass of the quadrotor in kg
+    /// * `gravity` - The gravitational acceleration in m/s^2
+    /// * `drag_coefficient` - The drag coefficient
+    /// * `inertia_matrix` - The inertia matrix of the quadrotor
+    /// # Returns
+    /// * A new Quadrotor instance
+    /// # Errors
+    /// * Returns a SimulationError if the inertia matrix cannot be inverted
     pub fn new(
         time_step: f32,
-        _mass: f32,
-        _gravity: f32,
-        _drag_coefficients: f32,
-        _inertia_matrix: [f32; 9],
+        mass: f32,
+        gravity: f32,
+        drag_coefficient: f32,
+        inertia_matrix: [f32; 9],
     ) -> Result<Self, SimulationError> {
-        let inertia_matrix = Matrix3::from_row_slice(&_inertia_matrix);
+        let inertia_matrix = Matrix3::from_row_slice(&inertia_matrix);
         let inertia_matrix_inv =
             inertia_matrix
                 .try_inverse()
@@ -71,10 +85,10 @@ impl Quadrotor {
             velocity: Vector3::zeros(),
             orientation: UnitQuaternion::identity(),
             angular_velocity: Vector3::zeros(),
-            mass: 1.3,
-            gravity: 9.81,
+            mass,
+            gravity,
             time_step,
-            drag_coefficient: 0.000,
+            drag_coefficient,
             inertia_matrix,
             inertia_matrix_inv,
         })
@@ -103,7 +117,9 @@ impl Quadrotor {
     }
     /// Simulates IMU readings
     /// # Returns
-    /// A tuple containing the actual acceleration and angular velocity
+    /// * A tuple containing the true acceleration and angular velocity of the quadrotor
+    /// # Errors
+    /// * Returns a SimulationError if the IMU readings cannot be calculated
     pub fn read_imu(&self) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
         let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
         let true_acceleration =
@@ -127,18 +143,26 @@ pub struct Imu {
 
 impl Imu {
     /// Creates a new IMU with default parameters
-    pub fn new(_accel_noise_std: f32, _gyro_noise_std: f32, _bias_instability: f32) -> Self {
+    /// # Arguments
+    /// * `accel_noise_std` - Standard deviation of accelerometer noise
+    /// * `gyro_noise_std` - Standard deviation of gyroscope noise
+    /// * `bias_instability` - Bias instability coefficient
+    /// # Returns
+    /// * A new Imu instance
+    pub fn new(accel_noise_std: f32, gyro_noise_std: f32, bias_instability: f32) -> Self {
         Self {
             accel_bias: Vector3::zeros(),
             gyro_bias: Vector3::zeros(),
-            accel_noise_std: _accel_noise_std,
-            gyro_noise_std: _gyro_noise_std,
-            bias_instability: _bias_instability,
+            accel_noise_std,
+            gyro_noise_std,
+            bias_instability,
         }
     }
     /// Updates the IMU biases over time
     /// # Arguments
     /// * `dt` - Time step for the update
+    /// # Errors
+    /// * Returns a SimulationError if the bias drift cannot be calculated
     pub fn update(&mut self, dt: f32) -> Result<(), SimulationError> {
         let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt())?;
         let drift_vector =
@@ -152,7 +176,9 @@ impl Imu {
     /// * `true_acceleration` - The true acceleration vector
     /// * `true_angular_velocity` - The true angular velocity vector
     /// # Returns
-    /// A tuple containing the measured acceleration and angular velocity
+    /// * A tuple containing the measured acceleration and angular velocity
+    /// # Errors
+    /// * Returns a SimulationError if the IMU readings cannot be calculated
     pub fn read(
         &self,
         true_acceleration: Vector3<f32>,
@@ -188,6 +214,13 @@ pub struct PIDController {
 impl PIDController {
     /// Creates a new PIDController with default gains
     /// gains are in the order of proportional, derivative, and integral
+    /// # Arguments
+    /// * `_kpid_pos` - PID gains for position control
+    /// * `_kpid_att` - PID gains for attitude control
+    /// * `_max_integral_pos` - Maximum allowed integral error for position
+    /// * `_max_integral_att` - Maximum allowed integral error for attitude
+    /// # Returns
+    /// * A new PIDController instance
     pub fn new(
         _kpid_pos: [[f32; 3]; 3],
         _kpid_att: [[f32; 3]; 3],
@@ -210,7 +243,7 @@ impl PIDController {
     /// * `current_angular_velocity` - The current angular velocity
     /// * `dt` - Time step
     /// # Returns
-    /// The computed control torque vector
+    /// * The computed attitude control torques
     pub fn compute_attitude_control(
         &mut self,
         desired_orientation: &UnitQuaternion<f32>,
@@ -241,7 +274,7 @@ impl PIDController {
     /// * `mass` - Mass of the quadrotor
     /// * `gravity` - Gravitational acceleration
     /// # Returns
-    /// A tuple containing the computed thrust and desired orientation quaternion
+    /// * A tuple containing the computed thrust and desired orientation quaternion
     pub fn compute_position_control(
         &mut self,
         desired_position: &Vector3<f32>,
@@ -282,12 +315,19 @@ impl PIDController {
 }
 /// Enum representing different types of trajectory planners
 pub enum PlannerType {
+    /// Hover planner
     Hover(HoverPlanner),
+    /// Minimum jerk line planner
     MinimumJerkLine(MinimumJerkLinePlanner),
+    /// Minimum jerk circle planner
     Lissajous(LissajousPlanner),
+    /// Minimum jerk circle planner
     Circle(CirclePlanner),
+    /// Minimum jerk landing planner
     Landing(LandingPlanner),
+    /// Obstacle avoidance planner
     ObstacleAvoidance(ObstacleAvoidancePlanner),
+    /// Minimum snap waypoint planner
     MinimumSnapWaypoint(MinimumSnapWaypointPlanner),
 }
 impl PlannerType {
@@ -297,7 +337,7 @@ impl PlannerType {
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
     /// # Returns
-    /// A tuple containing the desired position, velocity, and yaw angle
+    /// * A tuple containing the desired position, velocity, and yaw angle
     pub fn plan(
         &self,
         current_position: Vector3<f32>,
@@ -319,7 +359,7 @@ impl PlannerType {
     /// * `current_position` - The current position of the quadrotor
     /// * `time` - The current simulation time
     /// # Returns
-    /// `true` if the trajectory is finished, `false` otherwise
+    /// * `true` if the trajectory is finished, `false` otherwise
     pub fn is_finished(
         &self,
         current_position: Vector3<f32>,
@@ -344,6 +384,7 @@ trait Planner {
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
     /// # Returns
+    /// * A tuple containing the desired position, velocity, and yaw angle
     fn plan(
         &self,
         current_position: Vector3<f32>,
@@ -356,7 +397,7 @@ trait Planner {
     /// * `current_position` - The current position of the quadrotor
     /// * `time` - The current simulation time
     /// # Returns
-    /// `true` if the trajectory is finished, `false` otherwise
+    /// * `true` if the trajectory is finished, `false` otherwise
     fn is_finished(
         &self,
         current_position: Vector3<f32>,
@@ -617,7 +658,7 @@ impl PlannerManager {
     /// * `initial_position` - The initial position for hovering
     /// * `initial_yaw` - The initial yaw angle for hovering
     /// # Returns
-    /// A new PlannerManager instance
+    /// * A new PlannerManager instance
     pub fn new(initial_position: Vector3<f32>, initial_yaw: f32) -> Self {
         let hover_planner = HoverPlanner {
             target_position: initial_position,
@@ -640,7 +681,9 @@ impl PlannerManager {
     /// * `current_velocity` - The current velocity of the quadrotor
     /// * `time` - The current simulation time
     /// # Returns
-    /// A tuple containing the desired position, velocity, and yaw angle
+    /// * A tuple containing the desired position, velocity, and yaw angle
+    /// # Errors
+    /// * Returns a SimulationError if the current planner is not finished
     pub fn update(
         &mut self,
         current_position: Vector3<f32>,
@@ -740,6 +783,14 @@ impl Planner for ObstacleAvoidancePlanner {
 }
 
 impl ObstacleAvoidancePlanner {
+    /// A smooth attractive force function that transitions from linear to exponential decay
+    /// When the distance to the target is less than the target distance, the force is linear
+    /// When the distance is greater, the force decays exponentially
+    /// # Arguments
+    /// * `distance` - The distance to the target
+    /// # Returns
+    /// * The attractive force
+    #[inline]
     fn smooth_attractive_force(&self, distance: f32) -> f32 {
         if distance <= self.d_target {
             distance
@@ -749,21 +800,32 @@ impl ObstacleAvoidancePlanner {
     }
 }
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
-/// # Arguments
-/// * `waypoints` - A list of waypoints to follow
-/// * `yaws` - A list of yaw angles at each waypoint
-/// * `segment_times` - A list of times to reach each waypoint
-/// * `start_time` - The start time of the trajectory
 pub struct MinimumSnapWaypointPlanner {
+    /// List of waypoints
     waypoints: Vec<Vector3<f32>>,
+    /// List of yaw angles
     yaws: Vec<f32>,
+    /// List of segment times to reach each waypoint
     times: Vec<f32>,
+    /// Coefficients for the x, y, and z components of the trajectory
     coefficients: Vec<Vec<Vector3<f32>>>,
+    /// Coefficients for the yaw component of the trajectory
     yaw_coefficients: Vec<Vec<f32>>,
+    /// Start time of the trajectory
     start_time: f32,
 }
 
 impl MinimumSnapWaypointPlanner {
+    /// Generate a new minimum snap waypoint planner
+    /// # Arguments
+    /// * `waypoints` - List of waypoints
+    /// * `yaws` - List of yaw angles
+    /// * `segment_times` - List of segment times to reach each waypoint
+    /// * `start_time` - Start time of the trajectory
+    /// # Returns
+    /// * A new minimum snap waypoint planner
+    /// # Errors
+    /// * Returns an error if the number of waypoints, yaws, and segment times do not match
     fn new(
         waypoints: Vec<Vector3<f32>>,
         yaws: Vec<f32>,
@@ -791,6 +853,8 @@ impl MinimumSnapWaypointPlanner {
         Ok(planner)
     }
     /// Compute the coefficients for the minimum snap trajectory, calculated for each segment between waypoints
+    /// # Errors
+    /// * Returns an error if the nalgebra solver fails to solve the linear system
     fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.waypoints.len() - 1;
         for i in 0..n {
@@ -828,6 +892,8 @@ impl MinimumSnapWaypointPlanner {
     }
     /// Compute the coefficients for yaw trajectories
     /// The yaw trajectory is a cubic polynomial and interpolated between waypoints
+    /// # Errors
+    /// * Returns an error if nalgebra fails to solve for the coefficients
     fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.yaws.len() - 1; // Number of segments
         for i in 0..n {
@@ -927,10 +993,13 @@ impl Planner for MinimumSnapWaypointPlanner {
             && (current_position - last_waypoint).norm() < 0.1)
     }
 }
-
+/// Represents a step in the planner schedule.
 pub struct PlannerStepConfig {
+    /// The simulation step at which this planner should be activated.
     pub step: usize,
+    /// The type of planner to use for this step.
     pub planner_type: String,
+    /// Additional parameters for the planner, stored as a YAML value.
     pub params: serde_yaml::Value,
 }
 /// Updates the planner based on the current simulation step and configuration
@@ -941,6 +1010,8 @@ pub struct PlannerStepConfig {
 /// * `quad` - The Quadrotor instance
 /// * `obstacles` - The current obstacles in the simulation
 /// * `planner_config` - The planner configuration
+/// # Errors
+/// * If the planner could not be created
 pub fn update_planner(
     planner_manager: &mut PlannerManager,
     step: usize,
@@ -963,6 +1034,8 @@ pub fn update_planner(
 /// * `obstacles` - The current obstacles in the simulation
 /// # Returns
 /// * `PlannerType` - The created planner
+/// # Errors
+/// * If the planner type is not recognized
 fn create_planner(
     step: &PlannerStepConfig,
     quad: &Quadrotor,
@@ -1075,6 +1148,13 @@ fn create_planner(
     }
 }
 // Helper function to parse Vector3 from YAML
+// # Arguments
+// * `value` - YAML value
+// * `key` - key to parse
+// # Returns
+// * `Vector3<f32>` - parsed vector
+// # Errors
+// * `SimulationError` - if the value is not a valid vector
 fn parse_vector3(value: &serde_yaml::Value, key: &str) -> Result<Vector3<f32>, SimulationError> {
     value[key]
         .as_sequence()
@@ -1093,6 +1173,13 @@ fn parse_vector3(value: &serde_yaml::Value, key: &str) -> Result<Vector3<f32>, S
 }
 
 // Helper function to parse f32 from YAML
+// # Arguments
+// * `value` - YAML value
+// * `key` - key to parse
+// # Returns
+// * `f32` - parsed value
+// # Errors
+// * `SimulationError` - if the value is not a valid f32
 fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, SimulationError> {
     value[key]
         .as_f64()
@@ -1100,18 +1187,24 @@ fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, SimulationErro
         .ok_or_else(|| SimulationError::OtherError(format!("Invalid {}", key)))
 }
 /// Represents an obstacle in the simulation
-/// # Fields
-/// * `position` - The position of the obstacle
-/// * `velocity` - The velocity of the obstacle
-/// * `radius` - The radius of the obstacle
 #[derive(Clone)]
 pub struct Obstacle {
+    /// The position of the obstacle
     pub position: Vector3<f32>,
+    /// The velocity of the obstacle
     pub velocity: Vector3<f32>,
+    /// The radius of the obstacle
     pub radius: f32,
 }
 
 impl Obstacle {
+    /// Creates a new obstacle with the given position, velocity, and radius
+    /// # Arguments
+    /// * `position` - The position of the obstacle
+    /// * `velocity` - The velocity of the obstacle
+    /// * `radius` - The radius of the obstacle
+    /// # Returns
+    /// * The new obstacle instance
     fn new(position: Vector3<f32>, velocity: Vector3<f32>, radius: f32) -> Self {
         Self {
             position,
@@ -1121,13 +1214,12 @@ impl Obstacle {
     }
 }
 /// Represents a maze in the simulation
-/// # Fields
-/// * `lower_bounds` - The lower bounds of the maze
-/// * `upper_bounds` - The upper bounds of the maze
-/// * `obstacles` - The obstacles in the maze
 pub struct Maze {
+    /// The lower bounds of the maze in the x, y, and z directions
     pub lower_bounds: Vector3<f32>,
+    /// The upper bounds of the maze in the x, y, and z directions
     pub upper_bounds: Vector3<f32>,
+    /// The obstacles in the maze
     pub obstacles: Vec<Obstacle>,
 }
 impl Maze {
@@ -1136,6 +1228,8 @@ impl Maze {
     /// * `lower_bounds` - The lower bounds of the maze
     /// * `upper_bounds` - The upper bounds of the maze
     /// * `num_obstacles` - The number of obstacles in the maze
+    /// # Returns
+    /// * The new maze instance
     pub fn new(
         lower_bounds: Vector3<f32>,
         upper_bounds: Vector3<f32>,
@@ -1188,19 +1282,18 @@ impl Maze {
     }
 }
 /// Represents a camera in the simulation which is used to render the depth of the scene
-/// # Fields
-/// * `resolution` - The resolution of the camera
-/// * `fov` - The field of view of the camera
-/// * `near` - The near clipping plane of the camera
-/// * `far` - The far clipping plane of the camera
-/// * `tan_half_fov` - The tangent of half the field of view
-/// * `aspect_ratio` - The aspect ratio of the camera
 pub struct Camera {
+    /// The resolution of the camera
     pub resolution: (usize, usize),
+    /// The field of view of the camera
     pub fov: f32,
+    /// The near clipping plane of the camera
     pub near: f32,
+    /// The far clipping plane of the camera
     pub far: f32,
+    /// The aspect ratio of the camera
     pub aspect_ratio: f32,
+    /// The ray directions of each pixel in the camera
     pub ray_directions: Vec<Vector3<f32>>,
 }
 
@@ -1211,6 +1304,8 @@ impl Camera {
     /// * `fov` - The field of view of the camera
     /// * `near` - The near clipping plane of the camera
     /// * `far` - The far clipping plane of the camera
+    /// # Returns
+    /// * The new camera instance
     pub fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
         let (width, height) = resolution;
         let (aspect_ratio, tan_half_fov) = (width as f32 / height as f32, (fov / 2.0).tan());
@@ -1237,6 +1332,8 @@ impl Camera {
     /// * `quad_orientation` - The orientation of the quadrotor
     /// * `maze` - The maze in the scene
     /// * `depth_buffer` - The depth buffer to store the depth values
+    /// # Errors
+    /// * If the depth buffer is not large enough to store the depth values
     pub fn render_depth(
         &self,
         quad_position: &Vector3<f32>,
@@ -1268,7 +1365,9 @@ impl Camera {
     /// * `direction` - The direction of the ray
     /// * `maze` - The maze in the scene
     /// # Returns
-    /// The distance to the closest obstacle hit by the ray
+    /// * The distance to the closest obstacle hit by the ray
+    /// # Errors
+    /// * If the ray does not hit any obstacles
     pub fn ray_cast(
         &self,
         origin: &Vector3<f32>,
@@ -1326,6 +1425,8 @@ impl Camera {
 /// * `desired_position` - The desired position vector
 /// * `measured_accel` - The measured acceleration vector
 /// * `measured_gyro` - The measured angular velocity vector
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_data(
     rec: &rerun::RecordingStream,
     quad: &Quadrotor,
@@ -1374,6 +1475,8 @@ pub fn log_data(
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), SimulationError> {
     let (lower_bounds, upper_bounds) = (maze.lower_bounds, maze.upper_bounds);
     let center_position = rerun::external::glam::Vec3::new(
@@ -1397,6 +1500,8 @@ pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), Si
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `maze` - The maze instance
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_maze_obstacles(
     rec: &rerun::RecordingStream,
     maze: &Maze,
@@ -1418,17 +1523,21 @@ pub fn log_maze_obstacles(
     Ok(())
 }
 /// A struct to hold trajectory data
-/// # Fields
-/// * `points` - A vector of 3D points
-/// * `last_logged_point` - The last point that was logged
-/// * `min_distance_threadhold` - The minimum distance between points to log
 pub struct Trajectory {
-    points: Vec<Vector3<f32>>,
-    last_logged_point: Vector3<f32>,
-    min_distance_threadhold: f32,
+    /// A vector of 3D points
+    pub points: Vec<Vector3<f32>>,
+    /// The last point that was logged
+    pub last_logged_point: Vector3<f32>,
+    /// The minimum distance between points to log
+    pub min_distance_threadhold: f32,
 }
 
 impl Trajectory {
+    /// Create a new Trajectory instance
+    /// # Arguments
+    /// * `initial_point` - The initial point to add to the trajectory
+    /// # Returns
+    /// * A new Trajectory instance
     pub fn new(initial_point: Vector3<f32>) -> Self {
         Self {
             points: vec![initial_point],
@@ -1455,6 +1564,8 @@ impl Trajectory {
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `trajectory` - The Trajectory instance
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_trajectory(
     rec: &rerun::RecordingStream,
     trajectory: &Trajectory,
@@ -1475,6 +1586,8 @@ pub fn log_trajectory(
 /// * `rec` - The rerun::RecordingStream instance
 /// * `division` - The number of divisions in the mesh
 /// * `spacing` - The spacing between divisions
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_mesh(
     rec: &rerun::RecordingStream,
     division: usize,
@@ -1517,6 +1630,8 @@ pub fn log_mesh(
 /// * `height` - The height of the depth image
 /// * `min_depth` - The minimum depth value
 /// * `max_depth` - The maximum depth value
+/// # Errors
+/// * If the data cannot be logged to the recording stream
 pub fn log_depth_image(
     rec: &rerun::RecordingStream,
     depth_image: &Vec<f32>,
