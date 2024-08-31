@@ -335,12 +335,12 @@ impl PlannerType {
         time: f32,
     ) -> Result<bool, SimulationError> {
         match self {
-            PlannerType::Hover(p) => Ok(p.is_finished(current_position, time)),
-            PlannerType::MinimumJerkLine(p) => Ok(p.is_finished(current_position, time)),
-            PlannerType::Lissajous(p) => Ok(p.is_finished(current_position, time)),
-            PlannerType::Circle(p) => Ok(p.is_finished(current_position, time)),
-            PlannerType::Landing(p) => Ok(p.is_finished(current_position, time)),
-            PlannerType::ObstacleAvoidance(p) => Ok(p.is_finished(current_position, time)),
+            PlannerType::Hover(p) => p.is_finished(current_position, time),
+            PlannerType::MinimumJerkLine(p) => p.is_finished(current_position, time),
+            PlannerType::Lissajous(p) => p.is_finished(current_position, time),
+            PlannerType::Circle(p) => p.is_finished(current_position, time),
+            PlannerType::Landing(p) => p.is_finished(current_position, time),
+            PlannerType::ObstacleAvoidance(p) => p.is_finished(current_position, time),
             PlannerType::MinimumSnapWaypoint(p) => p.is_finished(current_position, time),
         }
     }
@@ -366,7 +366,11 @@ trait Planner {
     /// * `time` - The current simulation time
     /// # Returns
     /// `true` if the trajectory is finished, `false` otherwise
-    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool;
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError>;
 }
 /// Planner for hovering at a fixed position
 pub struct HoverPlanner {
@@ -386,8 +390,12 @@ impl Planner for HoverPlanner {
         (self.target_position, Vector3::zeros(), self.target_yaw)
     }
 
-    fn is_finished(&self, _current_position: Vector3<f32>, _time: f32) -> bool {
-        false // Hover planner never "finished"
+    fn is_finished(
+        &self,
+        _current_position: Vector3<f32>,
+        _time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok(false) // Hover planner never "finished"
     }
 }
 /// Planner for minimum jerk trajectories along a straight line
@@ -422,9 +430,13 @@ impl Planner for MinimumJerkLinePlanner {
         (position, velocity, yaw)
     }
 
-    fn is_finished(&self, _current_position: Vector3<f32>, _time: f32) -> bool {
-        (_current_position - self.end_position).norm() < 0.01
-            && _time >= self.start_time + self.duration
+    fn is_finished(
+        &self,
+        _current_position: Vector3<f32>,
+        _time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok((_current_position - self.end_position).norm() < 0.01
+            && _time >= self.start_time + self.duration)
     }
 }
 /// Planner for Lissajous curve trajectories
@@ -493,8 +505,12 @@ impl Planner for LissajousPlanner {
         (position, velocity, yaw)
     }
 
-    fn is_finished(&self, _current_position: Vector3<f32>, time: f32) -> bool {
-        time >= self.start_time + self.duration
+    fn is_finished(
+        &self,
+        _current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok(time >= self.start_time + self.duration)
     }
 }
 /// Planner for circular trajectories
@@ -556,8 +572,12 @@ impl Planner for CirclePlanner {
         (position, velocity, yaw)
     }
 
-    fn is_finished(&self, _current_position: Vector3<f32>, time: f32) -> bool {
-        time >= self.start_time + self.duration
+    fn is_finished(
+        &self,
+        _current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok(time >= self.start_time + self.duration)
     }
 }
 
@@ -587,8 +607,12 @@ impl Planner for LandingPlanner {
         (target_position, target_velocity, self.start_yaw)
     }
 
-    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
-        current_position.z < 0.05 || time >= self.start_time + self.duration
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok(current_position.z < 0.05 || time >= self.start_time + self.duration)
     }
 }
 /// Manages different trajectory planners and switches between them
@@ -714,9 +738,13 @@ impl Planner for ObstacleAvoidancePlanner {
         (desired_position, desired_velocity, desired_yaw)
     }
 
-    fn is_finished(&self, current_position: Vector3<f32>, time: f32) -> bool {
-        (current_position - self.target_position).norm() < 0.1
-            && time >= self.start_time + self.duration
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
+        Ok((current_position - self.target_position).norm() < 0.1
+            && time >= self.start_time + self.duration)
     }
 }
 
@@ -872,6 +900,9 @@ impl MinimumSnapWaypointPlanner {
         }
         (position, velocity, yaw, yaw_rate)
     }
+}
+
+impl Planner for MinimumSnapWaypointPlanner {
     fn plan(
         &self,
         _current_position: Vector3<f32>,
