@@ -158,24 +158,15 @@ impl Imu {
         true_acceleration: Vector3<f32>,
         true_angular_velocity: Vector3<f32>,
     ) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
-        let mut rng = rand::thread_rng();
         let accel_noise = Normal::new(0.0, self.accel_noise_std)?;
         let gyro_noise = Normal::new(0.0, self.gyro_noise_std)?;
-        let measured_acceleration = true_acceleration
-            + self.accel_bias
-            + Vector3::new(
-                accel_noise.sample(&mut rng),
-                accel_noise.sample(&mut rng),
-                accel_noise.sample(&mut rng),
-            );
-        let measured_angular_velocity = true_angular_velocity
-            + self.gyro_bias
-            + Vector3::new(
-                gyro_noise.sample(&mut rng),
-                gyro_noise.sample(&mut rng),
-                gyro_noise.sample(&mut rng),
-            );
-        Ok((measured_acceleration, measured_angular_velocity))
+        let accel_noise_sample =
+            || Vector3::from_iterator((0..3).map(|_| accel_noise.sample(&mut rand::thread_rng())));
+        let gyro_noise_sample =
+            || Vector3::from_iterator((0..3).map(|_| gyro_noise.sample(&mut rand::thread_rng())));
+        let measured_acceleration = true_acceleration + self.accel_bias + accel_noise_sample();
+        let measured_ang_velocity = true_angular_velocity + self.gyro_bias + gyro_noise_sample();
+        Ok((measured_acceleration, measured_ang_velocity))
     }
 }
 /// PID controller for quadrotor position and attitude control
@@ -840,9 +831,7 @@ impl MinimumSnapWaypointPlanner {
     fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.yaws.len() - 1; // Number of segments
         for i in 0..n {
-            let duration = self.times[i];
-            let start_yaw = self.yaws[i];
-            let end_yaw = self.yaws[i + 1];
+            let (duration, start_yaw, end_yaw) = (self.times[i], self.yaws[i], self.yaws[i + 1]);
             let mut a = SMatrix::<f32, 4, 4>::zeros();
             let mut b = SMatrix::<f32, 4, 1>::zeros();
             (a[(0, 0)], a[(1, 1)]) = (1.0, 1.0);
@@ -1045,7 +1034,7 @@ fn create_planner(
                             })
                             .ok_or(SimulationError::OtherError("Invalid waypoint".to_string()))
                     })
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Result<Vec<Vector3<f32>>, SimulationError>>()?,
             );
             let mut yaws = vec![quad.orientation.euler_angles().2];
             yaws.extend(
@@ -1058,7 +1047,7 @@ fn create_planner(
                             .map(|v| v as f32)
                             .ok_or(SimulationError::OtherError("Invalid yaw".to_string()))
                     })
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Result<Vec<f32>, SimulationError>>()?,
             );
             let segment_times = params["segment_times"]
                 .as_sequence()
@@ -1069,7 +1058,7 @@ fn create_planner(
                         SimulationError::OtherError("Invalid segment time".to_string())
                     })
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<Vec<f32>, SimulationError>>()?;
             MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, time)
                 .map(PlannerType::MinimumSnapWaypoint)
         }
@@ -1412,18 +1401,12 @@ pub fn log_maze_obstacles(
     rec: &rerun::RecordingStream,
     maze: &Maze,
 ) -> Result<(), SimulationError> {
-    let (positions, radii): (Vec<_>, Vec<_>) = maze
+    let (positions, radii): (Vec<(f32, f32, f32)>, Vec<f32>) = maze
         .obstacles
         .iter()
         .map(|obstacle| {
-            (
-                (
-                    obstacle.position.x,
-                    obstacle.position.y,
-                    obstacle.position.z,
-                ),
-                obstacle.radius,
-            )
+            let pos = obstacle.position;
+            ((pos.x, pos.y, pos.z), obstacle.radius)
         })
         .unzip();
     rec.log(
@@ -1480,7 +1463,7 @@ pub fn log_trajectory(
         .points
         .iter()
         .map(|p| (p.x, p.y, p.z))
-        .collect::<Vec<_>>();
+        .collect::<Vec<(f32, f32, f32)>>();
     rec.log(
         "world/quad/path",
         &rerun::LineStrips3D::new([path]).with_colors([rerun::Color::from_rgb(0, 255, 255)]),
