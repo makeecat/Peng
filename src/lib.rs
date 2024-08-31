@@ -137,8 +137,10 @@ pub struct Imu {
     pub accel_noise_std: f32,
     /// Standard deviation of gyroscope noise
     pub gyro_noise_std: f32,
-    /// Bias instability coefficient
-    pub bias_instability: f32,
+    /// Standard deviation of accelerometer bias drift
+    pub accel_bias_std: f32,
+    /// Standard deviation of gyroscope bias drift
+    pub gyro_bias_std: f32,
 }
 
 impl Imu {
@@ -146,16 +148,23 @@ impl Imu {
     /// # Arguments
     /// * `accel_noise_std` - Standard deviation of accelerometer noise
     /// * `gyro_noise_std` - Standard deviation of gyroscope noise
-    /// * `bias_instability` - Bias instability coefficient
+    /// * `accel_bias_std` - Standard deviation of accelerometer bias drift
+    /// * `gyro_bias_std` - Standard deviation of gyroscope bias drift
     /// # Returns
     /// * A new Imu instance
-    pub fn new(accel_noise_std: f32, gyro_noise_std: f32, bias_instability: f32) -> Self {
+    pub fn new(
+        accel_noise_std: f32,
+        gyro_noise_std: f32,
+        accel_bias_std: f32,
+        gyro_bias_std: f32,
+    ) -> Self {
         Self {
             accel_bias: Vector3::zeros(),
             gyro_bias: Vector3::zeros(),
             accel_noise_std,
             gyro_noise_std,
-            bias_instability,
+            accel_bias_std,
+            gyro_bias_std,
         }
     }
     /// Updates the IMU biases over time
@@ -164,11 +173,14 @@ impl Imu {
     /// # Errors
     /// * Returns a SimulationError if the bias drift cannot be calculated
     pub fn update(&mut self, dt: f32) -> Result<(), SimulationError> {
-        let bias_drift = Normal::new(0.0, self.bias_instability * dt.sqrt())?;
-        let drift_vector =
-            || Vector3::from_iterator((0..3).map(|_| bias_drift.sample(&mut rand::thread_rng())));
-        self.accel_bias += drift_vector();
-        self.gyro_bias += drift_vector();
+        let accel_drift = Normal::new(0.0, self.accel_bias_std * dt.sqrt())?;
+        let gyro_drift = Normal::new(0.0, self.gyro_bias_std * dt.sqrt())?;
+        let accel_drift_vector =
+            || Vector3::from_iterator((0..3).map(|_| accel_drift.sample(&mut rand::thread_rng())));
+        let gyro_drift_vector =
+            || Vector3::from_iterator((0..3).map(|_| gyro_drift.sample(&mut rand::thread_rng())));
+        self.accel_bias += accel_drift_vector();
+        self.gyro_bias += gyro_drift_vector();
         Ok(())
     }
     /// Simulates IMU readings with added bias and noise

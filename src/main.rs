@@ -35,7 +35,8 @@ fn main() -> Result<(), SimulationError> {
     let mut imu = Imu::new(
         config.imu.accel_noise_std,
         config.imu.gyro_noise_std,
-        config.imu.bias_instability,
+        config.imu.accel_bias_std,
+        config.imu.gyro_bias_std,
     );
     let upper_bounds = Vector3::from(config.maze.upper_bounds);
     let lower_bounds = Vector3::from(config.maze.lower_bounds);

@@ -89,8 +89,10 @@ pub struct ImuConfig {
     pub accel_noise_std: f32,
     /// Gyroscope noise standard deviation
     pub gyro_noise_std: f32,
-    /// Accelerometer and gyroscope bias instability
-    pub bias_instability: f32,
+    /// Accelerometer bias drift standard deviation
+    pub accel_bias_std: f32,
+    /// Gyroscope bias drift standard deviation
+    pub gyro_bias_std: f32,
 }
 
 #[derive(serde::Deserialize)]

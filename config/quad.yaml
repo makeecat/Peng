@@ -27,7 +27,8 @@ controller:
 imu:
   accel_noise_std: 0.02
   gyro_noise_std: 0.01
-  bias_instability: 0.0001
+  accel_bias_std: 0.0001
+  gyro_bias_std: 0.0001
 
 maze:
   lower_bounds: [-3.0, -2.0, 0.0]
