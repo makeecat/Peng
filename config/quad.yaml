@@ -67,17 +67,26 @@ planner_schedule:
       center: [0.5, 0.5, 1.0]
       radius: 0.5
       angular_velocity: 1.0
-      duration: 8.0
+      duration: 5.0
       ramp_time: 2.0
-  - step: 37000
+  - step: 32000
+    planner_type: MinimumJerkLine
+    params:
+      end_position: [-2.5, 0.0, 1.0]
+      end_yaw: 0.0
+      duration: 3.0
+  - step: 35000
     planner_type: ObstacleAvoidance
     params:
-      target_position: [1.5, 1.0, 0.5]
+      target_position: [2.5, 1.0, 0.5]
       duration: 10.0
       end_yaw: 0.0
       k_att: 0.03
-      k_rep: 0.02
+      k_rep: 0.01
+      k_vortex: 0.005
       d0: 0.5
+      d_target: 0.5
+      max_speed: 0.1
   - step: 45000
     planner_type: MinimumSnapWaypoint
     params:

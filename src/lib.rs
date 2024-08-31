@@ -670,22 +670,31 @@ pub struct ObstacleAvoidancePlanner {
     k_att: f32,
     /// Repulsive force gain
     k_rep: f32,
+    /// Vortex force gain
+    k_vortex: f32,
     /// Influence distance of obstacles
     d0: f32,
+    /// Influence distance of target
+    d_target: f32,
+    /// Maximum speed of the quadrotor
+    max_speed: f32,
 }
 
 impl Planner for ObstacleAvoidancePlanner {
     fn plan(
         &self,
         current_position: Vector3<f32>,
-        _current_velocity: Vector3<f32>,
+        current_velocity: Vector3<f32>,
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
-        // Attractive force towards the goal
-        let f_att = self.k_att * (self.target_position - current_position);
+        let distance_to_target = (self.target_position - current_position).norm();
+        let f_att = self.k_att
+            * self.smooth_attractive_force(distance_to_target)
+            * (self.target_position - current_position).normalize();
         // Repulsive force from obstacles
         let mut f_rep = Vector3::zeros();
+        let mut f_vortex = Vector3::zeros();
         for obstacle in &self.obstacles {
             let diff = current_position - obstacle.position;
             let distance = diff.norm();
@@ -694,11 +703,12 @@ impl Planner for ObstacleAvoidancePlanner {
                     * (1.0 / distance - 1.0 / self.d0)
                     * (1.0 / distance.powi(2))
                     * diff.normalize();
+                f_vortex +=
+                    self.k_vortex * current_velocity.cross(&diff).normalize() / distance.powi(2);
             }
         }
-        let f_total = f_att + f_rep;
-        let max_speed: f32 = 1.0;
-        let desired_velocity = f_total.normalize() * max_speed.min(f_total.norm());
+        let f_total = f_att + f_rep + f_vortex;
+        let desired_velocity = f_total.normalize() * self.max_speed.min(f_total.norm());
         let desired_position = current_position + desired_velocity * self.duration * (1.0 - t);
         let desired_yaw = self.start_yaw + (self.end_yaw - self.start_yaw) * t;
         (desired_position, desired_velocity, desired_yaw)
@@ -710,6 +720,15 @@ impl Planner for ObstacleAvoidancePlanner {
     }
 }
 
+impl ObstacleAvoidancePlanner {
+    fn smooth_attractive_force(&self, distance: f32) -> f32 {
+        if distance <= self.d_target {
+            distance
+        } else {
+            self.d_target + (distance - self.d_target).tanh()
+        }
+    }
+}
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
 /// # Arguments
 /// * `waypoints` - A list of waypoints to follow
@@ -777,11 +796,9 @@ impl MinimumSnapWaypointPlanner {
                         j as f32 * (j - 1) as f32 * (j - 2) as f32 * duration.powi(j as i32 - 3);
                 }
             }
-            let coeffs = a.lu().solve(&b).ok_or_else(|| {
-                SimulationError::NalgebraError(
-                    "Failed to solve for coefficients in MinimumSnapWaypointPlanner".to_string(),
-                )
-            })?;
+            let coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
+                "Failed to solve for coefficients in MinimumSnapWaypointPlanner".to_string(),
+            ))?;
             self.coefficients.push(
                 (0..8)
                     .map(|j| Vector3::new(coeffs[(j, 0)], coeffs[(j, 1)], coeffs[(j, 2)]))
@@ -979,7 +996,10 @@ fn create_planner(
             obstacles: obstacles.clone(),
             k_att: parse_f32(params, "k_att")?,
             k_rep: parse_f32(params, "k_rep")?,
+            k_vortex: parse_f32(params, "k_vortex")?,
             d0: parse_f32(params, "d0")?,
+            d_target: parse_f32(params, "d_target")?,
+            max_speed: parse_f32(params, "max_speed")?,
         })),
         "MinimumSnapWaypoint" => {
             let mut waypoints = vec![quad.position];
@@ -997,9 +1017,7 @@ fn create_planner(
                                     coords.get(2)?.as_f64()? as f32,
                                 ))
                             })
-                            .ok_or_else(|| {
-                                SimulationError::OtherError("Invalid waypoint".to_string())
-                            })
+                            .ok_or(SimulationError::OtherError("Invalid waypoint".to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             );
@@ -1007,12 +1025,12 @@ fn create_planner(
             yaws.extend(
                 params["yaws"]
                     .as_sequence()
-                    .ok_or_else(|| SimulationError::OtherError("Invalid yaws".to_string()))?
+                    .ok_or(SimulationError::OtherError("Invalid yaws".to_string()))?
                     .iter()
                     .map(|y| {
                         y.as_f64()
                             .map(|v| v as f32)
-                            .ok_or_else(|| SimulationError::OtherError("Invalid yaw".to_string()))
+                            .ok_or(SimulationError::OtherError("Invalid yaw".to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?,
             );
@@ -1528,6 +1546,7 @@ pub fn log_depth_image(
 /// * `gray` - The gray value in the range [0, 255]
 /// # Returns
 /// * The RGB color value in the range [0, 255]
+#[inline]
 pub fn color_map_fn(gray: f32) -> (u8, u8, u8) {
     let x = gray / 255.0;
     let r = (34.61
