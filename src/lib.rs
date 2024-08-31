@@ -845,18 +845,14 @@ impl MinimumSnapWaypointPlanner {
             let end_yaw = self.yaws[i + 1];
             let mut a = SMatrix::<f32, 4, 4>::zeros();
             let mut b = SMatrix::<f32, 4, 1>::zeros();
-            // Start point constraints
-            a[(0, 0)] = 1.0;
-            a[(1, 1)] = 1.0;
-            b[0] = start_yaw;
-            // End point constraints
+            (a[(0, 0)], a[(1, 1)]) = (1.0, 1.0);
+            (b[0], b[2]) = (start_yaw, end_yaw);
             for j in 0..4 {
                 a[(2, j)] = duration.powi(j as i32);
                 if j > 0 {
                     a[(3, j)] = j as f32 * duration.powi(j as i32 - 1);
                 }
             }
-            b[2] = end_yaw;
             let yaw_coeffs = a.lu().solve(&b).ok_or(SimulationError::NalgebraError(
                 "Failed to solve for yaw coefficients in MinimumSnapWaypointPlanner".to_string(),
             ))?;
@@ -943,7 +939,6 @@ impl Planner for MinimumSnapWaypointPlanner {
     }
 }
 
-#[derive(Clone)]
 pub struct PlannerStepConfig {
     pub step: usize,
     pub planner_type: String,
@@ -1263,20 +1258,17 @@ impl Camera {
         let (width, height) = self.resolution;
         let total_pixels = width * height;
         depth_buffer.clear();
-        if depth_buffer.capacity() < total_pixels {
-            depth_buffer.reserve(total_pixels - depth_buffer.capacity());
-        }
+        depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
         for i in 0..total_pixels {
-            let depth = self.ray_cast(
+            depth_buffer.push(self.ray_cast(
                 quad_position,
                 &rotation_world_to_camera,
                 &(rotation_camera_to_world * self.ray_directions[i]),
                 maze,
-            )?;
-            depth_buffer.push(depth);
+            )?);
         }
         Ok(())
     }
