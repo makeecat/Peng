@@ -1159,14 +1159,14 @@ pub fn create_planner(
         ))),
     }
 }
-// Helper function to parse Vector3 from YAML
-// # Arguments
-// * `value` - YAML value
-// * `key` - key to parse
-// # Returns
-// * `Vector3<f32>` - parsed vector
-// # Errors
-// * `SimulationError` - if the value is not a valid vector
+/// Helper function to parse Vector3 from YAML
+/// # Arguments
+/// * `value` - YAML value
+/// * `key` - key to parse
+/// # Returns
+/// * `Vector3<f32>` - parsed vector
+/// # Errors
+/// * `SimulationError` - if the value is not a valid vector
 pub fn parse_vector3(
     value: &serde_yaml::Value,
     key: &str,
@@ -1186,14 +1186,14 @@ pub fn parse_vector3(
         })
         .ok_or_else(|| SimulationError::OtherError(format!("Invalid {} vector", key)))
 }
-// Helper function to parse f32 from YAML
-// # Arguments
-// * `value` - YAML value
-// * `key` - key to parse
-// # Returns
-// * `f32` - parsed value
-// # Errors
-// * `SimulationError` - if the value is not a valid f32
+/// Helper function to parse f32 from YAML
+/// # Arguments
+/// * `value` - YAML value
+/// * `key` - key to parse
+/// # Returns
+/// * `f32` - parsed value
+/// # Errors
+/// * `SimulationError` - if the value is not a valid f32
 pub fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, SimulationError> {
     value[key]
         .as_f64()
