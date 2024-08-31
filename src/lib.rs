@@ -1231,11 +1231,15 @@ impl Obstacle {
 /// Represents a maze in the simulation
 pub struct Maze {
     /// The lower bounds of the maze in the x, y, and z directions
-    pub lower_bounds: Vector3<f32>,
+    pub lower_bounds: [f32; 3],
     /// The upper bounds of the maze in the x, y, and z directions
-    pub upper_bounds: Vector3<f32>,
+    pub upper_bounds: [f32; 3],
     /// The obstacles in the maze
     pub obstacles: Vec<Obstacle>,
+    /// The bounds of the obstacles' velocity
+    pub obstacles_velocity_bounds: [f32; 3],
+    /// The bounds of the obstacles' radius
+    pub obstacles_radius_bounds: [f32; 2],
 }
 impl Maze {
     /// Creates a new maze with the given bounds and number of obstacles
@@ -1246,14 +1250,18 @@ impl Maze {
     /// # Returns
     /// * The new maze instance
     pub fn new(
-        lower_bounds: Vector3<f32>,
-        upper_bounds: Vector3<f32>,
+        lower_bounds: [f32; 3],
+        upper_bounds: [f32; 3],
         num_obstacles: usize,
+        obstacles_velocity_bounds: [f32; 3],
+        obstacles_radius_bounds: [f32; 2],
     ) -> Self {
         let mut maze = Maze {
             lower_bounds,
             upper_bounds,
             obstacles: Vec::new(),
+            obstacles_velocity_bounds,
+            obstacles_radius_bounds,
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -1266,16 +1274,18 @@ impl Maze {
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds.x..self.upper_bounds.x),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds.y..self.upper_bounds.y),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds.z..self.upper_bounds.z),
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds[0]..self.upper_bounds[0]),
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds[1]..self.upper_bounds[1]),
+                    rand::Rng::gen_range(&mut rng, self.lower_bounds[2]..self.upper_bounds[2]),
                 );
+                let v_bounds = self.obstacles_velocity_bounds;
+                let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, -0.2..0.2),
-                    rand::Rng::gen_range(&mut rng, -0.2..0.2),
-                    rand::Rng::gen_range(&mut rng, -0.1..0.1),
+                    rand::Rng::gen_range(&mut rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::gen_range(&mut rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::gen_range(&mut rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut rng, 0.05..0.1);
+                let radius = rand::Rng::gen_range(&mut rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
@@ -1495,14 +1505,14 @@ pub fn log_data(
 pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), SimulationError> {
     let (lower_bounds, upper_bounds) = (maze.lower_bounds, maze.upper_bounds);
     let center_position = rerun::external::glam::Vec3::new(
-        (lower_bounds.x + upper_bounds.x) / 2.0,
-        (lower_bounds.y + upper_bounds.y) / 2.0,
-        (lower_bounds.z + upper_bounds.z) / 2.0,
+        (lower_bounds[0] + upper_bounds[0]) / 2.0,
+        (lower_bounds[1] + upper_bounds[1]) / 2.0,
+        (lower_bounds[2] + upper_bounds[2]) / 2.0,
     );
     let half_sizes = rerun::external::glam::Vec3::new(
-        (upper_bounds.x - lower_bounds.x) / 2.0,
-        (upper_bounds.y - lower_bounds.y) / 2.0,
-        (upper_bounds.z - lower_bounds.z) / 2.0,
+        (upper_bounds[0] - lower_bounds[0]) / 2.0,
+        (upper_bounds[1] - lower_bounds[1]) / 2.0,
+        (upper_bounds[2] - lower_bounds[2]) / 2.0,
     );
     rec.log(
         "world/maze/tube",

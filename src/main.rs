@@ -38,9 +38,13 @@ fn main() -> Result<(), SimulationError> {
         config.imu.accel_bias_std,
         config.imu.gyro_bias_std,
     );
-    let upper_bounds = Vector3::from(config.maze.upper_bounds);
-    let lower_bounds = Vector3::from(config.maze.lower_bounds);
-    let mut maze = Maze::new(lower_bounds, upper_bounds, config.maze.num_obstacles);
+    let mut maze = Maze::new(
+        config.maze.lower_bounds,
+        config.maze.upper_bounds,
+        config.maze.num_obstacles,
+        config.maze.obstacles_velocity_bounds,
+        config.maze.obstacles_radius_bounds,
+    );
     let camera = Camera::new(
         config.camera.resolution,
         config.camera.fov.to_radians(),

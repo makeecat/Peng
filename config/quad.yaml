@@ -34,6 +34,8 @@ maze:
   lower_bounds: [-3.0, -2.0, 0.0]
   upper_bounds: [3.0, 2.0, 2.0]
   num_obstacles: 20
+  obstacles_velocity_bounds: [0.2, 0.2, 0.1]
+  obstacles_radius_bounds: [0.05, 0.1]
 
 camera:
   resolution: [128, 96]

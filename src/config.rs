@@ -104,6 +104,10 @@ pub struct MazeConfig {
     pub lower_bounds: [f32; 3],
     /// Number of obstacles in the maze
     pub num_obstacles: usize,
+    /// Obstacle velocity maximum bounds in m/s in (x, y, z) directions
+    pub obstacles_velocity_bounds: [f32; 3],
+    /// Obstacle radius bounds in meters (min, max)
+    pub obstacles_radius_bounds: [f32; 2],
 }
 
 #[derive(serde::Deserialize)]
