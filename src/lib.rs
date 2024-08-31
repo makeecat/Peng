@@ -210,17 +210,17 @@ impl Imu {
 /// PID controller for quadrotor position and attitude control
 pub struct PIDController {
     /// PID gain for position control including proportional, derivative, and integral gains
-    kpid_pos: [Vector3<f32>; 3],
+    pub kpid_pos: [Vector3<f32>; 3],
     /// PID gain for attitude control including proportional, derivative, and integral gains
-    kpid_att: [Vector3<f32>; 3],
+    pub kpid_att: [Vector3<f32>; 3],
     /// Accumulated integral error for position
-    integral_pos_error: Vector3<f32>,
+    pub integral_pos_error: Vector3<f32>,
     /// Accumulated integral error for attitude
-    integral_att_error: Vector3<f32>,
+    pub integral_att_error: Vector3<f32>,
     /// Maximum allowed integral error for position
-    max_integral_pos: Vector3<f32>,
+    pub max_integral_pos: Vector3<f32>,
     /// Maximum allowed integral error for attitude
-    max_integral_att: Vector3<f32>,
+    pub max_integral_att: Vector3<f32>,
 }
 
 impl PIDController {
@@ -389,7 +389,7 @@ impl PlannerType {
     }
 }
 /// Trait defining the interface for trajectory planners
-trait Planner {
+pub trait Planner {
     /// Plans the trajectory based on the current state and time
     /// # Arguments
     /// * `current_position` - The current position of the quadrotor
@@ -419,9 +419,9 @@ trait Planner {
 /// Planner for hovering at a fixed position
 pub struct HoverPlanner {
     /// Target position for hovering
-    target_position: Vector3<f32>,
+    pub target_position: Vector3<f32>,
     /// Target yaw angle for hovering
-    target_yaw: f32,
+    pub target_yaw: f32,
 }
 
 impl Planner for HoverPlanner {
@@ -445,17 +445,17 @@ impl Planner for HoverPlanner {
 /// Planner for minimum jerk trajectories along a straight line
 pub struct MinimumJerkLinePlanner {
     /// Starting position of the trajectory
-    start_position: Vector3<f32>,
+    pub start_position: Vector3<f32>,
     /// Ending position of the trajectory
-    end_position: Vector3<f32>,
+    pub end_position: Vector3<f32>,
     /// Starting yaw angle
-    start_yaw: f32,
+    pub start_yaw: f32,
     /// Ending yaw angle
-    end_yaw: f32,
+    pub end_yaw: f32,
     /// Start time of the trajectory
-    start_time: f32,
+    pub start_time: f32,
     /// Duration of the trajectory
-    duration: f32,
+    pub duration: f32,
 }
 
 impl Planner for MinimumJerkLinePlanner {
@@ -486,25 +486,25 @@ impl Planner for MinimumJerkLinePlanner {
 /// Planner for Lissajous curve trajectories
 pub struct LissajousPlanner {
     /// Starting position of the trajectory
-    start_position: Vector3<f32>,
+    pub start_position: Vector3<f32>,
     /// Center of the Lissajous curve
-    center: Vector3<f32>,
+    pub center: Vector3<f32>,
     /// Amplitude of the Lissajous curve
-    amplitude: Vector3<f32>,
+    pub amplitude: Vector3<f32>,
     /// Frequency of the Lissajous curve
-    frequency: Vector3<f32>,
+    pub frequency: Vector3<f32>,
     /// Phase of the Lissajous curve
-    phase: Vector3<f32>,
+    pub phase: Vector3<f32>,
     /// Start time of the trajectory
-    start_time: f32,
+    pub start_time: f32,
     /// Duration of the trajectory
-    duration: f32,
+    pub duration: f32,
     /// Starting yaw angle
-    start_yaw: f32,
+    pub start_yaw: f32,
     /// Ending yaw angle
-    end_yaw: f32,
+    pub end_yaw: f32,
     /// Ramp-up time for smooth transitions
-    ramp_time: f32,
+    pub ramp_time: f32,
 }
 
 impl Planner for LissajousPlanner {
@@ -560,23 +560,23 @@ impl Planner for LissajousPlanner {
 /// Planner for circular trajectories
 pub struct CirclePlanner {
     /// Center of the circular trajectory
-    center: Vector3<f32>,
+    pub center: Vector3<f32>,
     /// Radius of the circular trajectory
-    radius: f32,
+    pub radius: f32,
     /// Angular velocity of the circular motion
-    angular_velocity: f32,
+    pub angular_velocity: f32,
     /// Starting position of the trajectory
-    start_position: Vector3<f32>,
+    pub start_position: Vector3<f32>,
     /// Start time of the trajectory
-    start_time: f32,
+    pub start_time: f32,
     /// Duration of the trajectory
-    duration: f32,
+    pub duration: f32,
     /// Starting yaw angle
-    start_yaw: f32,
+    pub start_yaw: f32,
     /// Ending yaw angle
-    end_yaw: f32,
+    pub end_yaw: f32,
     /// Ramp-up time for smooth transitions
-    ramp_time: f32,
+    pub ramp_time: f32,
 }
 
 impl Planner for CirclePlanner {
@@ -628,13 +628,13 @@ impl Planner for CirclePlanner {
 /// Planner for landing maneuvers
 pub struct LandingPlanner {
     /// Starting position of the landing maneuver
-    start_position: Vector3<f32>,
+    pub start_position: Vector3<f32>,
     /// Start time of the landing maneuver
-    start_time: f32,
+    pub start_time: f32,
     /// Duration of the landing maneuver
-    duration: f32,
+    pub duration: f32,
     /// Starting yaw angle
-    start_yaw: f32,
+    pub start_yaw: f32,
 }
 
 impl Planner for LandingPlanner {
@@ -661,7 +661,7 @@ impl Planner for LandingPlanner {
 }
 /// Manages different trajectory planners and switches between them
 pub struct PlannerManager {
-    current_planner: PlannerType,
+    pub current_planner: PlannerType,
 }
 
 impl PlannerManager {
@@ -725,29 +725,29 @@ impl PlannerManager {
 /// The resulting force is then used to calculate the desired position and velocity
 pub struct ObstacleAvoidancePlanner {
     /// Target position of the planner
-    target_position: Vector3<f32>,
+    pub target_position: Vector3<f32>,
     /// Start time of the planner
-    start_time: f32,
+    pub start_time: f32,
     /// Duration of the planner
-    duration: f32,
+    pub duration: f32,
     /// Starting yaw angle
-    start_yaw: f32,
+    pub start_yaw: f32,
     /// Ending yaw angle
-    end_yaw: f32,
+    pub end_yaw: f32,
     /// List of obstacles
-    obstacles: Vec<Obstacle>,
+    pub obstacles: Vec<Obstacle>,
     /// Attractive force gain
-    k_att: f32,
+    pub k_att: f32,
     /// Repulsive force gain
-    k_rep: f32,
+    pub k_rep: f32,
     /// Vortex force gain
-    k_vortex: f32,
+    pub k_vortex: f32,
     /// Influence distance of obstacles
-    d0: f32,
+    pub d0: f32,
     /// Influence distance of target
-    d_target: f32,
+    pub d_target: f32,
     /// Maximum speed of the quadrotor
-    max_speed: f32,
+    pub max_speed: f32,
 }
 
 impl Planner for ObstacleAvoidancePlanner {
@@ -814,17 +814,17 @@ impl ObstacleAvoidancePlanner {
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
 pub struct MinimumSnapWaypointPlanner {
     /// List of waypoints
-    waypoints: Vec<Vector3<f32>>,
+    pub waypoints: Vec<Vector3<f32>>,
     /// List of yaw angles
-    yaws: Vec<f32>,
+    pub yaws: Vec<f32>,
     /// List of segment times to reach each waypoint
-    times: Vec<f32>,
+    pub times: Vec<f32>,
     /// Coefficients for the x, y, and z components of the trajectory
-    coefficients: Vec<Vec<Vector3<f32>>>,
+    pub coefficients: Vec<Vec<Vector3<f32>>>,
     /// Coefficients for the yaw component of the trajectory
-    yaw_coefficients: Vec<Vec<f32>>,
+    pub yaw_coefficients: Vec<Vec<f32>>,
     /// Start time of the trajectory
-    start_time: f32,
+    pub start_time: f32,
 }
 
 impl MinimumSnapWaypointPlanner {
@@ -1048,7 +1048,7 @@ pub fn update_planner(
 /// * `PlannerType` - The created planner
 /// # Errors
 /// * If the planner type is not recognized
-fn create_planner(
+pub fn create_planner(
     step: &PlannerStepConfig,
     quad: &Quadrotor,
     time: f32,
@@ -1167,7 +1167,10 @@ fn create_planner(
 // * `Vector3<f32>` - parsed vector
 // # Errors
 // * `SimulationError` - if the value is not a valid vector
-fn parse_vector3(value: &serde_yaml::Value, key: &str) -> Result<Vector3<f32>, SimulationError> {
+pub fn parse_vector3(
+    value: &serde_yaml::Value,
+    key: &str,
+) -> Result<Vector3<f32>, SimulationError> {
     value[key]
         .as_sequence()
         .and_then(|seq| {
@@ -1192,7 +1195,7 @@ fn parse_vector3(value: &serde_yaml::Value, key: &str) -> Result<Vector3<f32>, S
 // * `f32` - parsed value
 // # Errors
 // * `SimulationError` - if the value is not a valid f32
-fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, SimulationError> {
+pub fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, SimulationError> {
     value[key]
         .as_f64()
         .map(|v| v as f32)
@@ -1217,7 +1220,7 @@ impl Obstacle {
     /// * `radius` - The radius of the obstacle
     /// # Returns
     /// * The new obstacle instance
-    fn new(position: Vector3<f32>, velocity: Vector3<f32>, radius: f32) -> Self {
+    pub fn new(position: Vector3<f32>, velocity: Vector3<f32>, radius: f32) -> Self {
         Self {
             position,
             velocity,
