@@ -96,22 +96,38 @@ The markdown lines are used for generating the documentation.
  Language            Files        Lines         Code     Comments       Blanks
 ===============================================================================
  SVG                     1            1            1            0            0
- TOML                    1           31           30            0            1
+ TOML                    1           38           37            0            1
  YAML                    1          121           98            9           14
 -------------------------------------------------------------------------------
- Markdown                4          267            0          201           66
+ Markdown                4          283            0          214           69
  |- BASH                 1            6            6            0            0
  |- Markdown             1           18            0           18            0
- (Total)                            291            6          219           66
+ (Total)                            307            6          232           69
 -------------------------------------------------------------------------------
- Rust                    3         1532         1492           24           16
- |- Markdown             2          487            0          487            0
+ Rust                    3         1516         1492            8           16
+ |- Markdown             2          503            0          503            0
  (Total)                           2019         1492          511           16
 ===============================================================================
- Total                  10         1952         1621          234           97
+ Total                  10         1959         1628          231          100
 ===============================================================================
  ```
 
-## Star History
+## Blog posts
+- [Peng #1: Minimal quadrotor pipeline in Rust](peng-1-minimal-quadrotor-pipeline-in-rust)
+- [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=makeecat/Peng&type=Date)](https://star-history.com/#makeecat/Peng&Date)
+## Citation
+
+If you use this project in your research or work, please cite it as follows:
+
+```bibtex
+@software{peng_quad,
+  author       = {Yang Zhou},
+  title        = {Peng: A Minimal Quadrotor Autonomy Framework in Rust},
+  year         = {2024},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/makeecat/peng}},
+}
+```
+
