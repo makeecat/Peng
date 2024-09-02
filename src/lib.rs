@@ -24,7 +24,7 @@ use std::f32::consts::PI;
 /// # Example
 /// ```
 /// use peng_quad::SimulationError;
-/// Err(SimulationError::OtherError("An error occurred".to_string()));
+/// let error = SimulationError::NalgebraError("Matrix inversion failed".to_string());
 /// ```
 pub enum SimulationError {
     /// Error related to Rerun visualization
@@ -184,13 +184,11 @@ impl Quadrotor {
 /// ```
 /// use nalgebra::Vector3;
 /// use peng_quad::Imu;
-/// let accel_bias = Vector3::new(0.0, 0.0, 0.0);
-/// let gyro_bias = Vector3::new(0.0, 0.0, 0.0);
 /// let accel_noise_std = 0.0003;
 /// let gyro_noise_std = 0.02;
 /// let accel_bias_std = 0.0001;
 /// let gyro_bias_std = 0.001;
-/// let imu = Imu::new(accel_bias, gyro_bias, accel_noise_std, gyro_noise_std, accel_bias_std, gyro_bias_std);
+/// let imu = Imu::new(accel_noise_std, gyro_noise_std, accel_bias_std, gyro_bias_std);
 /// ```
 pub struct Imu {
     /// Accelerometer bias
@@ -300,18 +298,18 @@ impl Imu {
 /// use nalgebra::Vector3;
 /// use peng_quad::PIDController;
 /// let kpid_pos = [
-///     Vector3::new(1.0, 1.0, 1.0),
-///     Vector3::new(0.1, 0.1, 0.1),
-///     Vector3::new(0.01, 0.01, 0.01),
+///     [1.0, 1.0, 1.0],
+///     [0.1, 0.1, 0.1],
+///     [0.01, 0.01, 0.01],
 /// ];
 /// let kpid_att = [
-///    Vector3::new(1.0, 1.0, 1.0),
-///   Vector3::new(0.1, 0.1, 0.1),
-///   Vector3::new(0.01, 0.01, 0.01),
+///     [1.0, 1.0, 1.0],
+///     [0.1, 0.1, 0.1],
+///     [0.01, 0.01, 0.01],
 /// ];
-/// let max_integral_pos = Vector3::new(1.0, 1.0, 1.0);
-/// let max_integral_att = Vector3::new(1.0, 1.0, 1.0);
-/// let pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
+/// let max_integral_pos = [1.0, 1.0, 1.0];
+/// let max_integral_att = [1.0, 1.0, 1.0];
+/// let pid_controller = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
 /// ```
 pub struct PIDController {
     /// PID gain for position control including proportional, derivative, and integral gains
@@ -477,9 +475,12 @@ impl PIDController {
 /// Enum representing different types of trajectory planners
 /// # Example
 /// ```
-/// use peng_quad::planner::PlannerType;
-/// use peng_quad::planner::HoverPlanner;
-/// let hover_planner = HoverPlanner::new();
+/// use peng_quad::PlannerType;
+/// use peng_quad::HoverPlanner;
+/// let hover_planner : PlannerType = PlannerType::Hover(HoverPlanner{
+///     target_position: nalgebra::Vector3::new(0.0, 0.0, 1.0),
+///     target_yaw: 0.0,
+/// });
 /// ```
 pub enum PlannerType {
     /// Hover planner
@@ -509,35 +510,14 @@ impl PlannerType {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use peng_quad::planner::PlannerType;
-    /// use peng_quad::planner::HoverPlanner;
-    /// use peng_quad::planner::MinimumJerkLinePlanner;
-    /// use peng_quad::planner::LissajousPlanner;
-    /// use peng_quad::planner::CirclePlanner;
-    /// use peng_quad::planner::LandingPlanner;
-    /// use peng_quad::planner::ObstacleAvoidancePlanner;
-    /// use peng_quad::planner::MinimumSnapWaypointPlanner;
-    /// let hover_planner = HoverPlanner::new(Vector3::new(0.0, 0.0, 1.0), 0.0);
-    /// let minimum_jerk_line_planner = MinimumJerkLinePlanner::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let lissajous_planner = LissajousPlanner::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    /// let circle_planner = CirclePlanner::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    /// let landing_planner = LandingPlanner::new(Vector3::new(0.0, 0.0, 1.0), 0.0);
-    /// let obstacle_avoidance_planner = ObstacleAvoidancePlanner::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
-    /// let minimum_snap_waypoint_planner = MinimumSnapWaypointPlanner::new(Vector3::new(0.0, 0.0, 1.0), Vector3::new(0.0, 0.0, 0.0), 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
+    /// use peng_quad::PlannerType;
+    /// use peng_quad::HoverPlanner;
+    /// let hover_planner = HoverPlanner {
+    ///     target_position: Vector3::new(0.0, 0.0, 1.0),
+    ///     target_yaw: 0.0
+    /// };
     /// let hover_planner_type = PlannerType::Hover(hover_planner);
-    /// let minimum_jerk_line_planner_type = PlannerType::MinimumJerkLine(minimum_jerk_line_planner);
-    /// let lissajous_planner_type = PlannerType::Lissajous(lissajous_planner);
-    /// let circle_planner_type = PlannerType::Circle(circle_planner);
-    /// let landing_planner_type = PlannerType::Landing(landing_planner);
-    /// let obstacle_avoidance_planner_type = PlannerType::ObstacleAvoidance(obstacle_avoidance_planner);
-    /// let minimum_snap_waypoint_planner_type = PlannerType::MinimumSnapWaypoint(minimum_snap_waypoint_planner);
     /// let (desired_position, desired_velocity, desired_yaw) = hover_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = minimum_jerk_line_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = lissajous_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = circle_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = landing_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = obstacle_avoidance_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
-    /// let (desired_position, desired_velocity, desired_yaw) = minimum_snap_waypoint_planner_type.plan(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0);
     /// ```
     pub fn plan(
         &self,
@@ -564,10 +544,14 @@ impl PlannerType {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use peng_quad::planner::PlannerType;
-    /// use peng_quad::planner::HoverPlanner;
-    /// let hover_planner = HoverPlanner::new(Vector3::new(0.0, 0.0, 1.0), 0.0);
-    /// let is_finished = hover_planner_type.is_finished(Vector3::new(0.0, 0.0, 0.0), 0.0);
+    /// use peng_quad::PlannerType;
+    /// use peng_quad::HoverPlanner;
+    /// use peng_quad::Planner;
+    /// let hover_planner = HoverPlanner{
+    ///     target_position: Vector3::new(0.0, 0.0, 1.0),
+    ///     target_yaw: 0.0,
+    /// };
+    /// let is_finished = hover_planner.is_finished(Vector3::new(0.0, 0.0, 0.0), 0.0);
     /// ```
     pub fn is_finished(
         &self,
@@ -589,7 +573,7 @@ impl PlannerType {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::Planner;
+/// use peng_quad::{Planner, SimulationError};
 /// struct TestPlanner;
 /// impl Planner for TestPlanner {
 ///    fn plan(
@@ -599,6 +583,13 @@ impl PlannerType {
 ///         time: f32,
 /// ) -> (Vector3<f32>, Vector3<f32>, f32) {
 ///         (Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0)
+///     }
+///     fn is_finished(
+///         &self,
+///         current_position: Vector3<f32>,
+///         time: f32,
+///     ) -> Result<bool, SimulationError> {
+///         Ok(true)
 ///     }
 /// }
 /// ```
@@ -613,7 +604,7 @@ pub trait Planner {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use peng_quad::planner::Planner;
+    /// use peng_quad::{Planner, SimulationError};
     /// struct TestPlanner;
     /// impl Planner for TestPlanner {
     ///     fn plan(
@@ -621,8 +612,15 @@ pub trait Planner {
     ///         current_position: Vector3<f32>,
     ///         current_velocity: Vector3<f32>,
     ///         time: f32,
-    ///     ) -> (Vector3<f32>, Vector3<f32>, f32) {
+    /// ) -> (Vector3<f32>, Vector3<f32>, f32) {
     ///         (Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0)
+    ///     }
+    ///     fn is_finished(
+    ///         &self,
+    ///         current_position: Vector3<f32>,
+    ///         time: f32,
+    ///     ) -> Result<bool, SimulationError> {
+    ///         Ok(true)
     ///     }
     /// }
     /// ```
@@ -641,15 +639,23 @@ pub trait Planner {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use peng_quad::planner::Planner;
+    /// use peng_quad::{Planner, SimulationError};
     /// struct TestPlanner;
     /// impl Planner for TestPlanner {
+    ///     fn plan(
+    ///         &self,
+    ///         current_position: Vector3<f32>,
+    ///         current_velocity: Vector3<f32>,
+    ///         time: f32,
+    /// ) -> (Vector3<f32>, Vector3<f32>, f32) {
+    ///         (Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 0.0)
+    ///     }
     ///     fn is_finished(
     ///         &self,
     ///         current_position: Vector3<f32>,
     ///         time: f32,
-    ///     ) -> bool {
-    ///         true
+    ///     ) -> Result<bool, SimulationError> {
+    ///         Ok(true)
     ///     }
     /// }
     /// ```
@@ -663,7 +669,7 @@ pub trait Planner {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::HoverPlanner;
+/// use peng_quad::HoverPlanner;
 /// let hover_planner = HoverPlanner {
 ///     target_position: Vector3::new(0.0, 0.0, 0.0),
 ///     target_yaw: 0.0,
@@ -698,7 +704,7 @@ impl Planner for HoverPlanner {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::MinimumJerkLinePlanner;
+/// use peng_quad::MinimumJerkLinePlanner;
 /// let minimum_jerk_line_planner = MinimumJerkLinePlanner {
 ///     start_position: Vector3::new(0.0, 0.0, 0.0),
 ///     end_position: Vector3::new(1.0, 1.0, 1.0),
@@ -752,7 +758,7 @@ impl Planner for MinimumJerkLinePlanner {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::LissajousPlanner;
+/// use peng_quad::LissajousPlanner;
 /// let lissajous_planner = LissajousPlanner {
 ///     start_position: Vector3::new(0.0, 0.0, 0.0),
 ///     center: Vector3::new(1.0, 1.0, 1.0),
@@ -843,7 +849,7 @@ impl Planner for LissajousPlanner {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::CirclePlanner;
+/// use peng_quad::CirclePlanner;
 /// let circle_planner = CirclePlanner {
 ///     center: Vector3::new(1.0, 1.0, 1.0),
 ///     radius: 1.0,
@@ -926,7 +932,7 @@ impl Planner for CirclePlanner {
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
-/// use peng_quad::planner::LandingPlanner;
+/// use peng_quad::LandingPlanner;
 /// let landing_planner = LandingPlanner {
 ///    start_position: Vector3::new(0.0, 0.0, 1.0),
 ///     start_time: 0.0,
@@ -1011,7 +1017,7 @@ impl PlannerManager {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use peng_quad::{PlannerManager, CirclePlanner};
+    /// use peng_quad::{PlannerManager, CirclePlanner, PlannerType};
     /// let initial_position = Vector3::new(0.0, 0.0, 1.0);
     /// let initial_yaw = 0.0;
     /// let mut planner_manager = PlannerManager::new(initial_position, initial_yaw);
@@ -1051,16 +1057,17 @@ impl PlannerManager {
     /// let current_position = Vector3::new(0.0, 0.0, 1.0);
     /// let current_orientation = UnitQuaternion::from_euler_angles(0.0, 0.0, 0.0);
     /// let current_velocity = Vector3::new(0.0, 0.0, 0.0);
+    /// let obstacles = vec![];
     /// let time = 0.0;
-    /// let result = planner_manager.update(current_position, current_orientation, current_velocity, time);
+    /// let result = planner_manager.update(current_position, current_orientation, current_velocity, time, &obstacles);
     /// match result {
     ///     Ok((target_position, target_velocity, target_yaw)) => {
     ///         println!("Target Position: {:?}", target_position);
     ///         println!("Target Velocity: {:?}", target_velocity);
     ///         println!("Target Yaw: {:?}", target_yaw);
     ///     }
-    ///     Err(SimulationError::PlannerNotFinished) => {
-    ///         println!("Planner is not finished yet");
+    ///     Err(SimulationError) => {
+    ///         log::error!("Error: Planner is not finished");
     ///     }
     /// }
     /// ```
@@ -1195,7 +1202,7 @@ impl ObstacleAvoidancePlanner {
     /// * The attractive force
     /// # Example
     /// ```
-    /// use pend_quad::ObstacleAvoidancePlanner;
+    /// use peng_quad::ObstacleAvoidancePlanner;
     /// let planner = ObstacleAvoidancePlanner {
     ///    target_position: nalgebra::Vector3::new(0.0, 0.0, 1.0),
     ///     start_time: 0.0,
@@ -1214,7 +1221,7 @@ impl ObstacleAvoidancePlanner {
     /// let force = planner.smooth_attractive_force(distance);
     /// ```
     #[inline]
-    fn smooth_attractive_force(&self, distance: f32) -> f32 {
+    pub fn smooth_attractive_force(&self, distance: f32) -> f32 {
         if distance <= self.d_target {
             distance
         } else {
@@ -1225,7 +1232,7 @@ impl ObstacleAvoidancePlanner {
 /// Waypoint planner that generates a minimum snap trajectory between waypoints
 /// # Example
 /// ```
-/// use pend_quad::MinimumSnapWaypointPlanner;
+/// use peng_quad::MinimumSnapWaypointPlanner;
 /// use nalgebra::Vector3;
 /// let planner = MinimumSnapWaypointPlanner::new(
 ///     vec![Vector3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0)],
@@ -1262,7 +1269,7 @@ impl MinimumSnapWaypointPlanner {
     /// * Returns an error if the number of waypoints, yaws, and segment times do not match
     /// # Example
     /// ```
-    /// use pend_quad::MinimumSnapWaypointPlanner;
+    /// use peng_quad::MinimumSnapWaypointPlanner;
     /// use nalgebra::Vector3;
     /// let waypoints = vec![Vector3::zeros(), Vector3::new(1.0, 0.0, 0.0)];
     /// let yaws = vec![0.0, 0.0];
@@ -1270,7 +1277,7 @@ impl MinimumSnapWaypointPlanner {
     /// let start_time = 0.0;
     /// let planner = MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, start_time);
     /// ```
-    fn new(
+    pub fn new(
         waypoints: Vec<Vector3<f32>>,
         yaws: Vec<f32>,
         segment_times: Vec<f32>,
@@ -1301,7 +1308,8 @@ impl MinimumSnapWaypointPlanner {
     /// * Returns an error if the nalgebra solver fails to solve the linear system
     /// # Example
     /// ```
-    /// use pend_quad::MinimumSnapWaypointPlanner;
+    /// use peng_quad::MinimumSnapWaypointPlanner;
+    /// use nalgebra::Vector3;
     /// let waypoints = vec![Vector3::zeros(), Vector3::new(1.0, 0.0, 0.0)];
     /// let yaws = vec![0.0, 0.0];
     /// let segment_times = vec![1.0];
@@ -1309,7 +1317,7 @@ impl MinimumSnapWaypointPlanner {
     /// let mut planner = MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, start_time).unwrap();
     /// planner.compute_minimum_snap_trajectories();
     /// ```
-    fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
+    pub fn compute_minimum_snap_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.waypoints.len() - 1;
         for i in 0..n {
             let duration = self.times[i];
@@ -1350,7 +1358,8 @@ impl MinimumSnapWaypointPlanner {
     /// * Returns an error if nalgebra fails to solve for the coefficients
     /// # Example
     /// ```
-    /// use pend_quad::MinimumSnapWaypointPlanner;
+    /// use peng_quad::MinimumSnapWaypointPlanner;
+    /// use nalgebra::Vector3;
     /// let waypoints = vec![Vector3::zeros(), Vector3::new(1.0, 0.0, 0.0)];
     /// let yaws = vec![0.0, 0.0];
     /// let segment_times = vec![1.0];
@@ -1359,7 +1368,7 @@ impl MinimumSnapWaypointPlanner {
     /// planner.compute_minimum_snap_trajectories();
     /// planner.compute_minimum_acceleration_yaw_trajectories();
     /// ```
-    fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
+    pub fn compute_minimum_acceleration_yaw_trajectories(&mut self) -> Result<(), SimulationError> {
         let n = self.yaws.len() - 1; // Number of segments
         for i in 0..n {
             let (duration, start_yaw, end_yaw) = (self.times[i], self.yaws[i], self.yaws[i + 1]);
@@ -1393,7 +1402,7 @@ impl MinimumSnapWaypointPlanner {
     /// # Example
     /// ```
     /// use nalgebra::Vector3;
-    /// use pend_quad::MinimumSnapWaypointPlanner;
+    /// use peng_quad::MinimumSnapWaypointPlanner;
     /// let waypoints = vec![Vector3::zeros(), Vector3::new(1.0, 0.0, 0.0)];
     /// let yaws = vec![0.0, 0.0];
     /// let segment_times = vec![1.0];
@@ -1403,7 +1412,7 @@ impl MinimumSnapWaypointPlanner {
     /// planner.compute_minimum_acceleration_yaw_trajectories();
     /// let (position, velocity, yaw, yaw_rate) = planner.evaluate_polynomial(0.5, &planner.coefficients[0], &planner.yaw_coefficients[0]);
     /// ```
-    fn evaluate_polynomial(
+    pub fn evaluate_polynomial(
         &self,
         t: f32,
         coeffs: &[Vector3<f32>],
@@ -1474,12 +1483,12 @@ impl Planner for MinimumSnapWaypointPlanner {
 /// Represents a step in the planner schedule.
 /// # Example
 /// ```
-/// use pend_quad::PlannerStepConfig;
+/// use peng_quad::PlannerStepConfig;
 /// let step = PlannerStepConfig {
 ///     step: 0,
 ///     planner_type: "MinimumJerkLocalPlanner".to_string(),
 ///     params: serde_yaml::Value::Null,
-/// }
+/// };
 /// ```
 pub struct PlannerStepConfig {
     /// The simulation step at which this planner should be activated.
@@ -1501,28 +1510,26 @@ pub struct PlannerStepConfig {
 /// * If the planner could not be created
 /// # Example
 /// ```
-/// use pend_quad::{PlannerManager, Quadrotor, Obstacle, PlannerStepConfig, update_planner};
+/// use peng_quad::{PlannerManager, Quadrotor, Obstacle, PlannerStepConfig, update_planner};
 /// use nalgebra::Vector3;
 /// let initial_position = Vector3::new(0.0, 0.0, 0.0);
 /// let initial_yaw = 0.0;
-/// let mut planner_manager = PlannerManager::new(initial_position, initial_yaw).unwrap();
+/// let mut planner_manager = PlannerManager::new(initial_position, initial_yaw);
 /// let step = 0;
 /// let time = 0.0;
 /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
 /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
-/// let obstacles = vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), 1.0).unwrap()];
+/// let obstacles = vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)];
 /// let planner_config = vec![PlannerStepConfig {
 ///     step: 0,
-///     planner_type: "MinimumJerkLinearPlanner".to_string(),
+///     planner_type: "MinimumJerkLine".to_string(),
 ///     params:
-///        serde_yaml::from_str(
-///        r#"
-///             end_position: [0.0, 0.0, 1.0]\n
-///             end_yaw: 0.0\n
-///             duration: 2.0\n
-///        "#
-///       ).unwrap(),
+///        serde_yaml::from_str(r#"
+///        end_position: [0.0, 0.0, 1.0]
+///        end_yaw: 0.0
+///        duration: 2.0
+///        "#).unwrap(),
 /// }];
 /// update_planner(&mut planner_manager, step, time, &quadrotor, &obstacles, &planner_config).unwrap();
 /// ```
@@ -1552,25 +1559,23 @@ pub fn update_planner(
 /// * If the planner type is not recognized
 /// # Example
 /// ```
-/// use pend_quad::{PlannerType, Quadrotor, Obstacle, PlannerStepConfig, create_planner};
+/// use peng_quad::{PlannerType, Quadrotor, Obstacle, PlannerStepConfig, create_planner};
 /// use nalgebra::Vector3;
 /// let step = PlannerStepConfig {
 ///    step: 0,
-///   planner_type: "MinimumJerkLinearPlanner".to_string(),
+///   planner_type: "MinimumJerkLine".to_string(),
 ///   params:
-///       serde_yaml::from_str(
-///          r#"
-///            end_position: [0.0, 0.0, 1.0]\n
-///             end_yaw: 0.0\n
-///             duration: 2.0\n
-///         "#
-///    ).unwrap(),
+///       serde_yaml::from_str(r#"
+///       end_position: [0.0, 0.0, 1.0]
+///       end_yaw: 0.0
+///       duration: 2.0
+///       "#).unwrap(),
 /// };
 /// let time = 0.0;
 /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
 /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
-/// let obstacles = vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), 1.0).unwrap()];
+/// let obstacles = vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)];
 /// let planner = create_planner(&step, &quadrotor, time, &obstacles).unwrap();
 /// match planner {
 ///    PlannerType::MinimumJerkLine(_) => log::info!("Created MinimumJerkLine planner"),
@@ -1701,7 +1706,7 @@ pub fn create_planner(
 /// use nalgebra::Vector3;
 /// use peng_quad::{parse_vector3, SimulationError};
 /// let value = serde_yaml::from_str("test: [1.0, 2.0, 3.0]").unwrap();
-/// assert_eq!(parse_vector3(&value, "test"), Ok(Vector3::new(1.0, 2.0, 3.0)));
+/// assert_eq!(parse_vector3(&value, "test").unwrap(), Vector3::new(1.0, 2.0, 3.0));
 /// ```
 pub fn parse_vector3(
     value: &serde_yaml::Value,
@@ -1732,6 +1737,7 @@ pub fn parse_vector3(
 /// * `SimulationError` - if the value is not a valid f32
 /// # Example
 /// ```
+/// use peng_quad::{parse_f32, SimulationError};
 /// let value = serde_yaml::from_str("key: 1.0").unwrap();
 /// let result = parse_f32(&value, "key").unwrap();
 /// assert_eq!(result, 1.0);
@@ -1818,7 +1824,7 @@ impl Maze {
     /// # Example
     /// ```
     /// use peng_quad::Maze;
-    /// let maze = Maze::new([0.0, 0.0, 0.0], [10.0, 10.0, 10.0], 5);
+    /// let maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// ```
     pub fn new(
         lower_bounds: [f32; 3],
@@ -1843,7 +1849,7 @@ impl Maze {
     /// # Example
     /// ```
     /// use peng_quad::Maze;
-    /// let mut maze = Maze::new([0.0, 0.0, 0.0], [10.0, 10.0, 10.0], 5);
+    /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// maze.generate_obstacles(5);
     /// ```
     pub fn generate_obstacles(&mut self, num_obstacles: usize) {
@@ -1873,7 +1879,7 @@ impl Maze {
     /// # Example
     /// ```
     /// use peng_quad::Maze;
-    /// let mut maze = Maze::new([0.0, 0.0, 0.0], [10.0, 10.0, 10.0], 5);
+    /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// maze.update_obstacles(0.1);
     /// ```
     pub fn update_obstacles(&mut self, dt: f32) {
@@ -1959,7 +1965,7 @@ impl Camera {
     /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
     /// let quad_position = Vector3::new(0.0, 0.0, 0.0);
     /// let quad_orientation = UnitQuaternion::identity();
-    /// let maze = Maze::new([0.0, 0.0, 0.0], [10.0, 10.0, 10.0], 5);
+    /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// let mut depth_buffer = vec![0.0; 800 * 600];
     /// camera.render_depth(&quad_position, &quad_orientation, &maze, &mut depth_buffer);
     /// ```
@@ -2005,7 +2011,7 @@ impl Camera {
     /// let origin = Vector3::new(0.0, 0.0, 0.0);
     /// let rotation_world_to_camera = Matrix3::identity();
     /// let direction = Vector3::new(1.0, 0.0, 0.0);
-    /// let maze = Maze::new([0.0, 0.0, 0.0], [10.0, 10.0, 10.0], 5);
+    /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// let distance = camera.ray_cast(&origin, &rotation_world_to_camera, &direction, &maze);
     /// ```
     pub fn ray_cast(
@@ -2071,8 +2077,7 @@ impl Camera {
 /// ```
 /// use peng_quad::{Quadrotor, log_data};
 /// use nalgebra::Vector3;
-/// use rerun::RecordingStream;
-/// let rec = rerun::RecordingStream::new("peng").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").connect().unwrap();
 /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
 /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 /// let quad = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
@@ -2135,9 +2140,9 @@ pub fn log_data(
 /// # Example
 /// ```
 /// use peng_quad::{Maze, log_maze_tube};
-/// use rerun::RecordingSteram;
-/// let rec = rerun::RecordingStream::new("log.rerun").connect().unwrap();
-/// let maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
+/// use rerun::RecordingStreamBuilder;
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
 /// log_maze_tube(&rec, &maze).unwrap();
 /// ```
 pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), SimulationError> {
@@ -2168,9 +2173,8 @@ pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), Si
 /// # Example
 /// ```
 /// use peng_quad::{Maze, log_maze_obstacles};
-/// use rerun::RecordingSteram;
-/// let rec = rerun::RecordingStream::new("log.rerun").connect().unwrap();
-/// let maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
 /// log_maze_obstacles(&rec, &maze).unwrap();
 /// ```
 pub fn log_maze_obstacles(
@@ -2261,8 +2265,7 @@ impl Trajectory {
 /// ```
 /// use peng_quad::{Trajectory, log_trajectory};
 /// use nalgebra::Vector3;
-/// use rerun::RecordingSteram;
-/// let rec = rerun::RecordingStream::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let mut trajectory = Trajectory::new(nalgebra::Vector3::new(0.0, 0.0, 0.0));
 /// trajectory.add_point(nalgebra::Vector3::new(1.0, 0.0, 0.0));
 /// log_trajectory(&rec, &trajectory).unwrap();
@@ -2292,8 +2295,7 @@ pub fn log_trajectory(
 /// # Example
 /// ```
 /// use peng_quad::log_mesh;
-/// use rerun::RecordingSteram;
-/// let rec = rerun::RecordingStream::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// log_mesh(&rec, 10, 0.1).unwrap();
 /// ```
 pub fn log_mesh(
@@ -2343,8 +2345,7 @@ pub fn log_mesh(
 /// # Example
 /// ```
 /// use peng_quad::log_depth_image;
-/// use rerun::RecordingSteram;
-/// let rec = rerun::RecordingStream::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![0.0; 640 * 480];
 /// log_depth_image(&rec, &depth_image, 640, 480, 0.0, 1.0).unwrap();
 /// ```
