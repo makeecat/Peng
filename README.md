@@ -114,8 +114,8 @@ The markdown lines are used for generating the documentation.
  ```
 
 ## Blog posts
-- [Peng #1: Minimal quadrotor pipeline in Rust](peng-1-minimal-quadrotor-pipeline-in-rust)
-- [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
+- [Peng #1: Minimal quadrotor pipeline in Rust](https://yangrobotics.com/peng-1-minimal-quadrotor-pipeline-in-rust)
+- [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](https://yangrobotics.com/peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
 
 ## Citation
 
