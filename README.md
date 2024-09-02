@@ -1,6 +1,4 @@
 # [![Peng](assets/Peng.svg)](https://github.com/makeecat/Peng)
-![GitHub last commit](https://img.shields.io/github/last-commit/makeecat/peng)
-![](https://img.shields.io/badge/Rust-1.80+-orange.svg)
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/makeecat/Peng#license)
 [![Crates.io](https://img.shields.io/crates/v/peng_quad.svg)](https://crates.io/crates/peng_quad)
 [![Downloads](https://img.shields.io/crates/d/peng_quad.svg)](https://crates.io/crates/peng_quad)
@@ -9,7 +7,7 @@
 [![dependency status](https://deps.rs/repo/github/makeecat/peng/status.svg)](https://deps.rs/repo/github/makeecat/peng)
 [![Gitter](https://img.shields.io/gitter/room/peng/peng)](https://app.gitter.im/#/room/#peng:gitter.im)
 ## What is Peng
-Peng is a minimal Rust-based quadrotor simulation pipeline. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
+Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
 ![demo](assets/Peng_demo.gif)
 ## Getting Started
 
@@ -87,31 +85,6 @@ The pipeline is designed to be minimal and for educational purpose.
 We chose the name Peng because our pipeline is flexible and can transform to suit different needs, just like the mythical bird.
 
 Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
-
-## Line Count
-I would like to thank [tokei](https://github.com/XAMPPRocky/tokei) for providing the line count statistics!
-My goal is to keep the project minimal and easy to understand by keeping the code line count below 1500.
-The markdown lines are used for generating the documentation.
-```markdown
-===============================================================================
- Language            Files        Lines         Code     Comments       Blanks
-===============================================================================
- SVG                     1            1            1            0            0
- TOML                    1           38           37            0            1
- YAML                    1          121           98            9           14
--------------------------------------------------------------------------------
- Markdown                4          283            0          215           68
- |- BASH                 1            6            6            0            0
- |- Markdown             1           18            0           18            0
- (Total)                            307            6          233           68
--------------------------------------------------------------------------------
- Rust                    3         1516         1492            8           16
- |- Markdown             2         1200            0         1192            8
- (Total)                           2716         1492         1200           24
-===============================================================================
- Total                  10         1959         1628          232           99
-===============================================================================
- ```
 
 ## Blog posts
 - [Peng #1: Minimal quadrotor pipeline in Rust](https://yangrobotics.com/peng-1-minimal-quadrotor-pipeline-in-rust)
