@@ -2074,7 +2074,7 @@ impl Camera {
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::{Quadrotor, log_data};
 /// use nalgebra::Vector3;
 /// let rec = rerun::RecordingStreamBuilder::new("peng").connect().unwrap();
@@ -2138,7 +2138,7 @@ pub fn log_data(
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::{Maze, log_maze_tube};
 /// use rerun::RecordingStreamBuilder;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
@@ -2171,7 +2171,7 @@ pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), Si
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::{Maze, log_maze_obstacles};
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
@@ -2262,7 +2262,7 @@ impl Trajectory {
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::{Trajectory, log_trajectory};
 /// use nalgebra::Vector3;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
@@ -2293,7 +2293,7 @@ pub fn log_trajectory(
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::log_mesh;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// log_mesh(&rec, 10, 0.1).unwrap();
@@ -2343,7 +2343,7 @@ pub fn log_mesh(
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
-/// ```
+/// ```no_run
 /// use peng_quad::log_depth_image;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![0.0; 640 * 480];
