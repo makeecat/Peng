@@ -1504,6 +1504,7 @@ pub struct PlannerStepConfig {
 /// * `planner_manager` - The PlannerManager instance to update
 /// * `step` - The current simulation step in ms unit
 /// * `time` - The current simulation time
+/// * `simulation_frequency' - The simulation frequency in Hz
 /// * `quad` - The Quadrotor instance
 /// * `obstacles` - The current obstacles in the simulation
 /// * `planner_config` - The planner configuration
@@ -1513,6 +1514,7 @@ pub struct PlannerStepConfig {
 /// ```
 /// use peng_quad::{PlannerManager, Quadrotor, Obstacle, PlannerStepConfig, update_planner};
 /// use nalgebra::Vector3;
+/// let simulation_frequency = 1000;
 /// let initial_position = Vector3::new(0.0, 0.0, 0.0);
 /// let initial_yaw = 0.0;
 /// let mut planner_manager = PlannerManager::new(initial_position, initial_yaw);
@@ -1532,7 +1534,7 @@ pub struct PlannerStepConfig {
 ///        duration: 2.0
 ///        "#).unwrap(),
 /// }];
-/// update_planner(&mut planner_manager, step, time, &quadrotor, &obstacles, &planner_config).unwrap();
+/// update_planner(&mut planner_manager, step, time, simulation_frequency, &quadrotor, &obstacles, &planner_config).unwrap();
 /// ```
 pub fn update_planner(
     planner_manager: &mut PlannerManager,
