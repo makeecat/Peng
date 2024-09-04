@@ -5,8 +5,8 @@ pub struct Config {
     pub simulation: SimulationConfig,
     /// Quadrotor configuration
     pub quadrotor: QuadrotorConfig,
-    /// Controller configuration
-    pub controller: ControllerConfig,
+    /// PID Controller configuration
+    pub pid_controller: PIDControllerConfig,
     /// IMU configuration
     pub imu: ImuConfig,
     /// Maze configuration
@@ -19,12 +19,14 @@ pub struct Config {
     pub planner_schedule: Vec<PlannerStep>,
     /// Use rerun.io for recording
     pub use_rerun: bool,
+    /// Render depth
+    pub render_depth: bool,
 }
 
 #[derive(serde::Deserialize)]
 /// Configuration for a planner step
 pub struct PlannerStep {
-    /// Step number that the planner should be executed
+    /// Step number that the planner should be executed (Unit: ms)
     pub step: usize,
     /// Type of planner to use
     pub planner_type: String,
@@ -36,11 +38,11 @@ pub struct PlannerStep {
 /// Configuration for the simulation
 pub struct SimulationConfig {
     /// Control frequency in Hz
-    pub control_frequency: f32,
+    pub control_frequency: usize,
     /// Simulation frequency in Hz
-    pub simulation_frequency: f32,
+    pub simulation_frequency: usize,
     /// Log frequency in Hz
-    pub log_frequency: f32,
+    pub log_frequency: usize,
     /// Duration of the simulation in seconds
     pub duration: f32,
 }
@@ -59,8 +61,8 @@ pub struct QuadrotorConfig {
 }
 
 #[derive(serde::Deserialize)]
-/// Configuration for the controller
-pub struct ControllerConfig {
+/// Configuration for the PID controller
+pub struct PIDControllerConfig {
     /// Position gains
     pub pos_gains: PIDGains,
     /// Attitude gains

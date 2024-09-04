@@ -1,10 +1,10 @@
-# Enable visualization using rerun.io
-use_rerun: true
+use_rerun: true # Enable visualization using rerun.io
+render_depth: true # Enable render depth if use_rerun is true
 
 simulation:
-  control_frequency: 200.0 # Frequency of control loop execution (Hz)
-  simulation_frequency: 1000.0 # Frequency of physics simulation updates (Hz)
-  log_frequency: 20.0 # Frequency of data logging (Hz)
+  control_frequency: 200 # Frequency of control loop execution (Hz)
+  simulation_frequency: 1000 # Frequency of physics simulation updates (Hz)
+  log_frequency: 20 # Frequency of data logging (Hz)
   duration: 70.0 # Total duration of the simulation (seconds)
 
 quadrotor:
@@ -14,7 +14,7 @@ quadrotor:
   # Inertia matrix [Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz] (kg*m^2)
   inertia_matrix: [3.04e-3, 0.0, 0.0, 0.0, 4.55e-3, 0.0, 0.0, 0.0, 2.82e-3]
 
-controller:
+pid_controller:
   pos_gains: # PID gains for position control
     kp: [7.1, 7.1, 11.9] # Proportional gains [x, y, z]
     kd: [2.4, 2.4, 6.7] # Derivative gains [x, y, z]
@@ -51,7 +51,7 @@ mesh:
 
 planner_schedule:
   # Minimum Jerk Line trajectory
-  - step: 1000 # Simulation step to start this planner
+  - step: 1000 # Simulation step in ms to start this planner
     planner_type: MinimumJerkLine
     params:
       end_position: [0.0, 0.0, 1.0] # Target end position [x, y, z] (m)

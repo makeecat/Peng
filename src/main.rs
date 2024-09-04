@@ -1,14 +1,11 @@
 use nalgebra::Vector3;
-use std::env;
-mod config;
-use config::Config;
 use peng_quad::*;
 fn main() -> Result<(), SimulationError> {
     env_logger::builder()
         .parse_env(env_logger::Env::default().default_filter_or("info"))
         .init();
     let mut config_str = "config/quad.yaml";
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
         log::warn!("Usage: {} <config.yaml>.", args[0]);
         log::warn!("Loading default configuration: config/quad.yaml");
@@ -16,21 +13,21 @@ fn main() -> Result<(), SimulationError> {
         log::info!("Loading configuration: {}", args[1]);
         config_str = &args[1];
     }
-    let config = Config::from_yaml(config_str).expect("Failed to load configuration");
+    let config = config::Config::from_yaml(config_str).expect("Failed to load configuration");
     let mut quad = Quadrotor::new(
-        1.0 / config.simulation.simulation_frequency,
+        1.0 / config.simulation.simulation_frequency as f32,
         config.quadrotor.mass,
         config.quadrotor.gravity,
         config.quadrotor.drag_coefficient,
         config.quadrotor.inertia_matrix,
     )?;
-    let _pos_gains = config.controller.pos_gains;
-    let _att_gains = config.controller.att_gains;
+    let _pos_gains = config.pid_controller.pos_gains;
+    let _att_gains = config.pid_controller.att_gains;
     let mut controller = PIDController::new(
         [_pos_gains.kp, _pos_gains.kd, _pos_gains.ki],
         [_att_gains.kp, _att_gains.kd, _att_gains.ki],
-        config.controller.pos_max_int,
-        config.controller.att_max_int,
+        config.pid_controller.pos_max_int,
+        config.pid_controller.att_max_int,
     );
     let mut imu = Imu::new(
         config.imu.accel_noise_std,
@@ -87,6 +84,7 @@ fn main() -> Result<(), SimulationError> {
             &mut planner_manager,
             i,
             time,
+            config.simulation.simulation_frequency,
             &quad,
             &maze.obstacles,
             &planner_config,
@@ -114,8 +112,7 @@ fn main() -> Result<(), SimulationError> {
             &quad.angular_velocity,
             quad.time_step,
         );
-        if i % (config.simulation.simulation_frequency as usize
-            / config.simulation.control_frequency as usize)
+        if i % (config.simulation.simulation_frequency / config.simulation.control_frequency)
             == 0
         {
             quad.update_dynamics_with_controls(thrust, &torque);
@@ -127,8 +124,7 @@ fn main() -> Result<(), SimulationError> {
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
-        if i % (config.simulation.simulation_frequency as usize
-            / config.simulation.log_frequency as usize)
+        if i % (config.simulation.simulation_frequency / config.simulation.log_frequency)
             == 0
         {
             if let Some(rec) = &rec {
@@ -144,15 +140,22 @@ fn main() -> Result<(), SimulationError> {
                     &_measured_accel,
                     &_measured_gyro,
                 )?;
-                camera.render_depth(&quad.position, &quad.orientation, &maze, &mut depth_buffer)?;
-                log_depth_image(
-                    &rec,
-                    &depth_buffer,
-                    camera.resolution.0,
-                    camera.resolution.1,
-                    camera.near,
-                    camera.far,
-                )?;
+                if config.render_depth {
+                    camera.render_depth(
+                        &quad.position,
+                        &quad.orientation,
+                        &maze,
+                        &mut depth_buffer,
+                    )?;
+                    log_depth_image(
+                        &rec,
+                        &depth_buffer,
+                        camera.resolution.0,
+                        camera.resolution.1,
+                        camera.near,
+                        camera.far,
+                    )?;
+                }
                 log_maze_obstacles(&rec, &maze)?;
             }
         }

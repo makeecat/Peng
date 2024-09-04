@@ -16,6 +16,7 @@
 //! let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 //! let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix);
 //! ```
+pub mod config;
 use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
@@ -1491,7 +1492,7 @@ impl Planner for MinimumSnapWaypointPlanner {
 /// };
 /// ```
 pub struct PlannerStepConfig {
-    /// The simulation step at which this planner should be activated.
+    /// The simulation step at which this planner should be activated (in ms unit).
     pub step: usize,
     /// The type of planner to use for this step.
     pub planner_type: String,
@@ -1501,7 +1502,7 @@ pub struct PlannerStepConfig {
 /// Updates the planner based on the current simulation step and configuration
 /// # Arguments
 /// * `planner_manager` - The PlannerManager instance to update
-/// * `step` - The current simulation step
+/// * `step` - The current simulation step in ms unit
 /// * `time` - The current simulation time
 /// * `quad` - The Quadrotor instance
 /// * `obstacles` - The current obstacles in the simulation
@@ -1537,11 +1538,15 @@ pub fn update_planner(
     planner_manager: &mut PlannerManager,
     step: usize,
     time: f32,
+    simulation_frequency: usize,
     quad: &Quadrotor,
     obstacles: &Vec<Obstacle>,
     planner_config: &Vec<PlannerStepConfig>,
 ) -> Result<(), SimulationError> {
-    if let Some(planner_step) = planner_config.iter().find(|s| s.step == step) {
+    if let Some(planner_step) = planner_config
+        .iter()
+        .find(|s| s.step * simulation_frequency == step * 1000)
+    {
         log::info!("Time: {:.2} s,\tSwitch {}", time, planner_step.planner_type);
         planner_manager.set_planner(create_planner(planner_step, quad, time, obstacles)?);
     }
@@ -1549,7 +1554,7 @@ pub fn update_planner(
 }
 /// Creates a planner based on the configuration
 /// # Arguments
-/// * `step` - The configuration for the planner step
+/// * `step` - The configuration for the planner step in ms unit
 /// * `quad` - The Quadrotor instance
 /// * `time` - The current simulation time
 /// * `obstacles` - The current obstacles in the simulation
@@ -2357,13 +2362,16 @@ pub fn log_depth_image(
     min_depth: f32,
     max_depth: f32,
 ) -> Result<(), SimulationError> {
-    let mut image = ndarray::Array::zeros((height, width, 3));
+    let mut image = rerun::external::ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
     image
-        .axis_iter_mut(ndarray::Axis(0))
+        .axis_iter_mut(rerun::external::ndarray::Axis(0))
         .enumerate()
         .for_each(|(y, mut row)| {
-            for (x, mut pixel) in row.axis_iter_mut(ndarray::Axis(0)).enumerate() {
+            for (x, mut pixel) in row
+                .axis_iter_mut(rerun::external::ndarray::Axis(0))
+                .enumerate()
+            {
                 let depth = depth_image[y * width + x];
                 let color = if depth.is_finite() {
                     let normalized_depth = ((depth - min_depth) / depth_range).clamp(0.0, 1.0);
