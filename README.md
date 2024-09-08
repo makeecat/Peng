@@ -1,4 +1,4 @@
-# [![Peng](assets/Peng.svg)](https://github.com/makeecat/Peng)
+# [![Peng](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng.svg)](https://github.com/makeecat/Peng)
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/makeecat/Peng#license)
 [![Crates.io](https://img.shields.io/crates/v/peng_quad.svg)](https://crates.io/crates/peng_quad)
@@ -11,7 +11,7 @@
 ## What is Peng
 
 Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
-![demo](assets/Peng_demo.gif)
+![demo](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng_demo.gif)
 
 ## Getting Started
 

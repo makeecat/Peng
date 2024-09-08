@@ -1,6 +1,7 @@
 [package]
+exclude = ["assets/", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md"]
 name = "peng_quad"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 rust-version = "1.76"
 authors = ["Yang Zhou <yangzhou.info@gmail.com>"]
@@ -27,7 +28,7 @@ codegen-units = 1 # Compile the entire crate as one unit.
 lto = "thin"      # Do a second optimization pass over the entire program, including dependencies.
 [dependencies]
 nalgebra = "0.33.0"
-rand = "0.8.5"
+rand = { version = "0.8.5", features = ["rand_chacha"] }
 rand_distr = "0.4.3"
 rerun = "0.18.2"
 thiserror = "1.0.63"
@@ -35,3 +36,5 @@ serde = { version = "1.0.209", features = ["derive"] }
 serde_yaml = "0.9.34"
 env_logger = "0.11.5"
 log = "0.4.22"
+rayon = "1.10.0"
+rand_chacha = "0.3.1"

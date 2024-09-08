@@ -21,6 +21,8 @@ pub struct Config {
     pub use_rerun: bool,
     /// Render depth
     pub render_depth: bool,
+    /// MultiThreading depth rendering
+    pub use_multithreading_depth_rendering: bool,
 }
 
 #[derive(serde::Deserialize)]

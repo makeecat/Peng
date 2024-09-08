@@ -34,7 +34,7 @@ fn main() -> Result<(), SimulationError> {
         config.imu.gyro_noise_std,
         config.imu.accel_bias_std,
         config.imu.gyro_bias_std,
-    );
+    )?;
     let mut maze = Maze::new(
         config.maze.lower_bounds,
         config.maze.upper_bounds,
@@ -112,9 +112,7 @@ fn main() -> Result<(), SimulationError> {
             &quad.angular_velocity,
             quad.time_step,
         );
-        if i % (config.simulation.simulation_frequency / config.simulation.control_frequency)
-            == 0
-        {
+        if i % (config.simulation.simulation_frequency / config.simulation.control_frequency) == 0 {
             quad.update_dynamics_with_controls(thrust, &torque);
             previous_thrust = thrust;
             previous_torque = torque;
@@ -124,9 +122,16 @@ fn main() -> Result<(), SimulationError> {
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
-        if i % (config.simulation.simulation_frequency / config.simulation.log_frequency)
-            == 0
-        {
+        if i % (config.simulation.simulation_frequency / config.simulation.log_frequency) == 0 {
+            if config.render_depth {
+                camera.render_depth(
+                    &quad.position,
+                    &quad.orientation,
+                    &maze,
+                    &mut depth_buffer,
+                    config.use_multithreading_depth_rendering,
+                )?;
+            }
             if let Some(rec) = &rec {
                 rec.set_time_seconds("timestamp", time);
                 if trajectory.add_point(quad.position) {
@@ -141,12 +146,6 @@ fn main() -> Result<(), SimulationError> {
                     &_measured_gyro,
                 )?;
                 if config.render_depth {
-                    camera.render_depth(
-                        &quad.position,
-                        &quad.orientation,
-                        &maze,
-                        &mut depth_buffer,
-                    )?;
                     log_depth_image(
                         &rec,
                         &depth_buffer,

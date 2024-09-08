@@ -1,5 +1,6 @@
 use_rerun: true # Enable visualization using rerun.io
-render_depth: true # Enable render depth if use_rerun is true
+render_depth: true # Enable rendering depth
+use_multithreading_depth_rendering: true # Enable multithreading for depth rendering for large resolution (above 32x24)
 
 simulation:
   control_frequency: 200 # Frequency of control loop execution (Hz)

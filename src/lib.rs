@@ -16,8 +16,11 @@
 //! let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 //! let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix);
 //! ```
+use rand::SeedableRng;
+use rayon::prelude::*;
 pub mod config;
 use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
+use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
 #[derive(thiserror::Error, Debug)]
@@ -204,6 +207,16 @@ pub struct Imu {
     pub accel_bias_std: f32,
     /// Standard deviation of gyroscope bias drift
     pub gyro_bias_std: f32,
+    /// Accelerometer noise distribution
+    accel_noise: Normal<f32>,
+    /// Gyroscope noise distribution
+    gyro_noise: Normal<f32>,
+    /// Accelerometer bias drift distribution
+    accel_bias_drift: Normal<f32>,
+    /// Gyroscope bias drift distribution
+    gyro_bias_drift: Normal<f32>,
+    /// Random number generator
+    rng: ChaCha8Rng,
 }
 /// Implements the IMU
 impl Imu {
@@ -226,15 +239,20 @@ impl Imu {
         gyro_noise_std: f32,
         accel_bias_std: f32,
         gyro_bias_std: f32,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, SimulationError> {
+        Ok(Self {
             accel_bias: Vector3::zeros(),
             gyro_bias: Vector3::zeros(),
             accel_noise_std,
             gyro_noise_std,
             accel_bias_std,
             gyro_bias_std,
-        }
+            accel_noise: Normal::new(0.0, accel_noise_std)?,
+            gyro_noise: Normal::new(0.0, gyro_noise_std)?,
+            accel_bias_drift: Normal::new(0.0, accel_bias_std)?,
+            gyro_bias_drift: Normal::new(0.0, gyro_bias_std)?,
+            rng: ChaCha8Rng::from_entropy(),
+        })
     }
     /// Updates the IMU biases over time
     /// # Arguments
@@ -245,18 +263,15 @@ impl Imu {
     /// ```
     /// use peng_quad::Imu;
     ///
-    /// let mut imu = Imu::new(0.01, 0.01, 0.01, 0.01);
+    /// let mut imu = Imu::new(0.01, 0.01, 0.01, 0.01).unwrap();
     /// imu.update(0.01).unwrap();
     /// ```
     pub fn update(&mut self, dt: f32) -> Result<(), SimulationError> {
-        let accel_drift = Normal::new(0.0, self.accel_bias_std * dt.sqrt())?;
-        let gyro_drift = Normal::new(0.0, self.gyro_bias_std * dt.sqrt())?;
-        let accel_drift_vector =
-            || Vector3::from_iterator((0..3).map(|_| accel_drift.sample(&mut rand::thread_rng())));
-        let gyro_drift_vector =
-            || Vector3::from_iterator((0..3).map(|_| gyro_drift.sample(&mut rand::thread_rng())));
-        self.accel_bias += accel_drift_vector();
-        self.gyro_bias += gyro_drift_vector();
+        let dt_sqrt = fast_sqrt(dt);
+        let accel_drift = self.accel_bias_drift.sample(&mut self.rng) * dt_sqrt;
+        let gyro_drift = self.gyro_bias_drift.sample(&mut self.rng) * dt_sqrt;
+        self.accel_bias += Vector3::from_iterator((0..3).map(|_| accel_drift));
+        self.gyro_bias += Vector3::from_iterator((0..3).map(|_| gyro_drift));
         Ok(())
     }
     /// Simulates IMU readings with added bias and noise
@@ -272,24 +287,22 @@ impl Imu {
     /// use nalgebra::Vector3;
     /// use peng_quad::Imu;
     ///
-    /// let imu = Imu::new(0.01, 0.01, 0.01, 0.01);
+    /// let mut imu = Imu::new(0.01, 0.01, 0.01, 0.01).unwrap();
     /// let true_acceleration = Vector3::new(0.0, 0.0, 9.81);
     /// let true_angular_velocity = Vector3::new(0.0, 0.0, 0.0);
     /// let (measured_acceleration, measured_ang_velocity) = imu.read(true_acceleration, true_angular_velocity).unwrap();
     /// ```
     pub fn read(
-        &self,
+        &mut self,
         true_acceleration: Vector3<f32>,
         true_angular_velocity: Vector3<f32>,
     ) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
-        let accel_noise = Normal::new(0.0, self.accel_noise_std)?;
-        let gyro_noise = Normal::new(0.0, self.gyro_noise_std)?;
         let accel_noise_sample =
-            || Vector3::from_iterator((0..3).map(|_| accel_noise.sample(&mut rand::thread_rng())));
+            Vector3::from_iterator((0..3).map(|_| self.accel_noise.sample(&mut self.rng)));
         let gyro_noise_sample =
-            || Vector3::from_iterator((0..3).map(|_| gyro_noise.sample(&mut rand::thread_rng())));
-        let measured_acceleration = true_acceleration + self.accel_bias + accel_noise_sample();
-        let measured_ang_velocity = true_angular_velocity + self.gyro_bias + gyro_noise_sample();
+            Vector3::from_iterator((0..3).map(|_| self.gyro_noise.sample(&mut self.rng)));
+        let measured_acceleration = true_acceleration + self.accel_bias + accel_noise_sample;
+        let measured_ang_velocity = true_angular_velocity + self.gyro_bias + gyro_noise_sample;
         Ok((measured_acceleration, measured_ang_velocity))
     }
 }
@@ -1860,7 +1873,7 @@ impl Maze {
     /// maze.generate_obstacles(5);
     /// ```
     pub fn generate_obstacles(&mut self, num_obstacles: usize) {
-        let mut rng = rand::thread_rng();
+        let mut rng = ChaCha8Rng::from_entropy();
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
@@ -1974,7 +1987,8 @@ impl Camera {
     /// let quad_orientation = UnitQuaternion::identity();
     /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
     /// let mut depth_buffer = vec![0.0; 800 * 600];
-    /// camera.render_depth(&quad_position, &quad_orientation, &maze, &mut depth_buffer);
+    /// let use_multithreading = true;
+    /// camera.render_depth(&quad_position, &quad_orientation, &maze, &mut depth_buffer, use_multithreading);
     /// ```
     pub fn render_depth(
         &self,
@@ -1982,21 +1996,35 @@ impl Camera {
         quad_orientation: &UnitQuaternion<f32>,
         maze: &Maze,
         depth_buffer: &mut Vec<f32>,
+        use_multi_threading: bool,
     ) -> Result<(), SimulationError> {
         let (width, height) = self.resolution;
         let total_pixels = width * height;
-        depth_buffer.clear();
-        depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
-        for i in 0..total_pixels {
-            depth_buffer.push(self.ray_cast(
-                quad_position,
-                &rotation_world_to_camera,
-                &(rotation_camera_to_world * self.ray_directions[i]),
-                maze,
-            )?);
+        if use_multi_threading {
+            depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
+            depth_buffer
+                .par_iter_mut()
+                .enumerate()
+                .try_for_each(|(i, depth)| {
+                    let direction = rotation_camera_to_world * self.ray_directions[i];
+                    *depth =
+                        self.ray_cast(quad_position, &rotation_world_to_camera, &direction, maze)?;
+                    Ok::<(), SimulationError>(())
+                })?;
+        } else {
+            depth_buffer.clear();
+            depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
+            for i in 0..total_pixels {
+                depth_buffer.push(self.ray_cast(
+                    quad_position,
+                    &rotation_world_to_camera,
+                    &(rotation_camera_to_world * self.ray_directions[i]),
+                    maze,
+                )?);
+            }
         }
         Ok(())
     }
@@ -2058,7 +2086,8 @@ impl Camera {
             let c = oc.dot(&oc) - obstacle.radius * obstacle.radius;
             let discriminant = b * b - c;
             if discriminant >= 0.0 {
-                let t = -b - discriminant.sqrt();
+                // let t = -b - discriminant.sqrt();
+                let t = -b - fast_sqrt(discriminant);
                 if t > self.near && t < closest_hit {
                     closest_hit = t;
                 }
@@ -2410,4 +2439,16 @@ pub fn color_map_fn(gray: f32) -> (u8, u8, u8) {
     let b = (27.2 + x * (3211.1 - x * (15327.97 - x * (27814.0 - x * (22569.18 - x * 6838.66)))))
         .clamp(0.0, 255.0) as u8;
     (r, g, b)
+}
+
+/// Fast square root function
+/// # Arguments
+/// * `x` - The input value
+/// # Returns
+/// * The square root of the input value
+#[inline(always)]
+fn fast_sqrt(x: f32) -> f32 {
+    let i = x.to_bits();
+    let i = 0x1fbd1df5 + (i >> 1);
+    f32::from_bits(i)
 }
