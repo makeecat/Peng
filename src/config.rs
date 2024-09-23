@@ -2,7 +2,6 @@
 //! This module contains the configuration for the simulation, quadrotor, PID controller, IMU, maze, camera, mesh, and planner schedule.
 //! The configuration is loaded from a YAML file using the serde library.
 //! The configuration is then used to initialize the simulation, quadrotor, PID controller, IMU, maze, camera, mesh, and planner schedule.
-//! ```
 #[derive(serde::Deserialize)]
 /// Configuration for the simulation
 pub struct Config {
