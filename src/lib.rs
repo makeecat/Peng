@@ -19,7 +19,7 @@
 use rand::SeedableRng;
 use rayon::prelude::*;
 pub mod config;
-use nalgebra::{Matrix3, Rotation3, SMatrix, UnitQuaternion, Vector3};
+use nalgebra::{Matrix3, Quaternion, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
@@ -141,9 +141,9 @@ impl Quadrotor {
     /// let mut quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
     /// let control_thrust = mass * gravity;
     /// let control_torque = Vector3::new(0.0, 0.0, 0.0);
-    /// quadrotor.update_dynamics_with_controls(control_thrust, &control_torque);
+    /// quadrotor.update_dynamics_with_controls_euler(control_thrust, &control_torque);
     /// ```
-    pub fn update_dynamics_with_controls(
+    pub fn update_dynamics_with_controls_euler(
         &mut self,
         control_thrust: f32,
         control_torque: &Vector3<f32>,
@@ -160,6 +160,164 @@ impl Quadrotor {
         self.angular_velocity += angular_acceleration * self.time_step;
         self.orientation *=
             UnitQuaternion::from_scaled_axis(self.angular_velocity * self.time_step);
+    }
+    /// Updates the quadrotor's dynamics with control inputs using the Runge-Kutta 4th order method
+    /// # Arguments
+    /// * `control_thrust` - The total thrust force applied to the quadrotor
+    /// * `control_torque` - The 3D torque vector applied to the quadrotor
+    /// # Example
+    /// ```
+    /// use nalgebra::Vector3;
+    /// use peng_quad::Quadrotor;
+    /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
+    /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
+    /// let mut quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+    /// let control_thrust = mass * gravity;
+    /// let control_torque = Vector3::new(0.0, 0.0, 0.0);
+    /// quadrotor.update_dynamics_with_controls_rk4(control_thrust, &control_torque);
+    /// ```
+    pub fn update_dynamics_with_controls_rk4(
+        &mut self,
+        control_thrust: f32,
+        control_torque: &Vector3<f32>,
+    ) {
+        let h = self.time_step;
+        let state = self.get_state();
+
+        let k1 = self.state_derivative(&state, control_thrust, control_torque);
+        let k2 = self.state_derivative(
+            &(state
+                .iter()
+                .zip(k1.iter())
+                .map(|(s, k)| s + 0.5 * h * k)
+                .collect::<Vec<f32>>()),
+            control_thrust,
+            control_torque,
+        );
+        let k3 = self.state_derivative(
+            &(state
+                .iter()
+                .zip(k2.iter())
+                .map(|(s, k)| s + 0.5 * h * k)
+                .collect::<Vec<f32>>()),
+            control_thrust,
+            control_torque,
+        );
+        let k4 = self.state_derivative(
+            &(state
+                .iter()
+                .zip(k3.iter())
+                .map(|(s, k)| s + h * k)
+                .collect::<Vec<f32>>()),
+            control_thrust,
+            control_torque,
+        );
+        let new_state: Vec<f32> = state
+            .iter()
+            .zip(k1.iter().zip(k2.iter().zip(k3.iter().zip(k4.iter()))))
+            .map(|(s, (k1, (k2, (k3, k4))))| s + (h / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4))
+            .collect();
+
+        self.set_state(&new_state);
+    }
+    /// Returns the state derivative of the quadrotor
+    /// # Arguments
+    /// * `state` - The state of the quadrotor
+    /// # Example
+    /// ```
+    /// use nalgebra::Vector3;
+    /// use peng_quad::Quadrotor;
+    /// use nalgebra::UnitQuaternion;
+    /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
+    /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
+    /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+    /// let state = quadrotor.get_state();
+    /// ```
+    pub fn get_state(&self) -> Vec<f32> {
+        let mut state = Vec::with_capacity(13);
+        state.extend_from_slice(self.position.as_slice());
+        state.extend_from_slice(self.velocity.as_slice());
+        state.extend_from_slice(self.orientation.coords.as_slice());
+        state.extend_from_slice(self.angular_velocity.as_slice());
+        state
+    }
+    /// Sets the state of the quadrotor
+    /// # Arguments
+    /// * `state` - The state of the quadrotor
+    /// # Example
+    /// ```
+    /// use nalgebra::Vector3;
+    /// use peng_quad::Quadrotor;
+    /// use nalgebra::UnitQuaternion;
+    /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
+    /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
+    /// let mut quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+    /// let state = [
+    ///    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    /// ];
+    /// quadrotor.set_state(&state);
+    /// ```
+    pub fn set_state(&mut self, state: &[f32]) {
+        self.position = Vector3::from_column_slice(&state[0..3]);
+        self.velocity = Vector3::from_column_slice(&state[3..6]);
+        self.orientation = UnitQuaternion::from_quaternion(Quaternion::new(
+            state[9], state[6], state[7], state[8],
+        ));
+        self.angular_velocity = Vector3::from_column_slice(&state[10..13]);
+    }
+    /// Calculates the derivative of the state of the quadrotor
+    /// # Arguments
+    /// * `state` - The current state of the quadrotor
+    /// * `control_thrust` - The thrust applied to the quadrotor
+    /// * `control_torque` - The torque applied to the quadrotor
+    /// # Returns
+    /// The derivative of the state
+    /// # Example
+    /// ```
+    /// use nalgebra::Vector3;
+    /// use peng_quad::Quadrotor;
+    /// use nalgebra::UnitQuaternion;
+    /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
+    /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
+    /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+    /// let state = [
+    ///   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    /// ];
+    /// let control_thrust = 0.0;
+    /// let control_torque = Vector3::new(0.0, 0.0, 0.0);
+    /// let derivative = quadrotor.state_derivative(&state, control_thrust, &control_torque);
+    /// ```
+    pub fn state_derivative(
+        &self,
+        state: &[f32],
+        control_thrust: f32,
+        control_torque: &Vector3<f32>,
+    ) -> Vec<f32> {
+        let velocity = Vector3::from_column_slice(&state[3..6]);
+        let orientation = UnitQuaternion::from_quaternion(Quaternion::new(
+            state[9], state[6], state[7], state[8],
+        ));
+        // Quaternion deriviative
+        let omega_quat = Quaternion::new(0.0, state[10], state[11], state[12]);
+        let q_dot = orientation.into_inner() * omega_quat * 0.5;
+
+        let angular_velocity = Vector3::from_column_slice(&state[10..13]);
+
+        let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
+        let drag_force = -self.drag_coefficient * velocity.norm() * velocity;
+        let thrust_world = orientation * Vector3::new(0.0, 0.0, control_thrust);
+        let acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
+
+        let inertia_angular_velocity = self.inertia_matrix * angular_velocity;
+        let gyroscopic_torque = angular_velocity.cross(&inertia_angular_velocity);
+        let angular_acceleration = self.inertia_matrix_inv * (control_torque - gyroscopic_torque);
+
+        let mut derivative = Vec::with_capacity(13);
+        derivative.extend_from_slice(velocity.as_slice());
+        derivative.extend_from_slice(acceleration.as_slice());
+        derivative.extend_from_slice(q_dot.coords.as_slice());
+        derivative.extend_from_slice(angular_acceleration.as_slice());
+        derivative
     }
     /// Simulates IMU readings
     /// # Returns
@@ -323,7 +481,9 @@ impl Imu {
 /// ];
 /// let max_integral_pos = [1.0, 1.0, 1.0];
 /// let max_integral_att = [1.0, 1.0, 1.0];
-/// let pid_controller = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
+/// let mass = 1.0;
+/// let gravity = 9.81;
+/// let pid_controller = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att, mass, gravity);
 /// ```
 pub struct PIDController {
     /// PID gain for position control including proportional, derivative, and integral gains
@@ -338,6 +498,10 @@ pub struct PIDController {
     pub max_integral_pos: Vector3<f32>,
     /// Maximum allowed integral error for attitude
     pub max_integral_att: Vector3<f32>,
+    /// Mass of the quadrotor
+    pub mass: f32,
+    /// Gravity constant
+    pub gravity: f32,
 }
 /// Implementation of PIDController
 impl PIDController {
@@ -358,13 +522,17 @@ impl PIDController {
     /// let kpid_att = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     /// let max_integral_pos = [1.0, 1.0, 1.0];
     /// let max_integral_att = [1.0, 1.0, 1.0];
-    /// let pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
+    /// let mass = 1.0;
+    /// let gravity = 9.81;
+    /// let pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att, mass, gravity);
     /// ```
     pub fn new(
         _kpid_pos: [[f32; 3]; 3],
         _kpid_att: [[f32; 3]; 3],
         _max_integral_pos: [f32; 3],
         _max_integral_att: [f32; 3],
+        _mass: f32,
+        _gravity: f32,
     ) -> Self {
         Self {
             kpid_pos: _kpid_pos.map(Vector3::from),
@@ -373,6 +541,8 @@ impl PIDController {
             integral_att_error: Vector3::zeros(),
             max_integral_pos: Vector3::from(_max_integral_pos),
             max_integral_att: Vector3::from(_max_integral_att),
+            mass: _mass,
+            gravity: _gravity,
         }
     }
     /// Computes attitude control torques
@@ -392,7 +562,9 @@ impl PIDController {
     /// let kpid_att = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     /// let max_integral_pos = [1.0, 1.0, 1.0];
     /// let max_integral_att = [1.0, 1.0, 1.0];
-    /// let mut pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
+    /// let mass = 1.0;
+    /// let gravity = 9.81;
+    /// let mut pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att, mass, gravity);
     /// let desired_orientation = UnitQuaternion::identity();
     /// let current_orientation = UnitQuaternion::identity();
     /// let current_angular_velocity = Vector3::zeros();
@@ -439,14 +611,16 @@ impl PIDController {
     /// let kpid_att = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     /// let max_integral_pos = [1.0, 1.0, 1.0];
     /// let max_integral_att = [1.0, 1.0, 1.0];
-    /// let mut pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att);
+    /// let mass = 1.0;
+    /// let gravity = 9.81;
+    /// let mut pid = PIDController::new(kpid_pos, kpid_att, max_integral_pos, max_integral_att, mass, gravity);
     /// let desired_position = Vector3::new(0.0, 0.0, 1.0);
     /// let desired_velocity = Vector3::zeros();
     /// let desired_yaw = 0.0;
     /// let current_position = Vector3::zeros();
     /// let current_velocity = Vector3::zeros();
-    /// let (dt, mass, gravity) = (0.01, 1.3, 9.81);
-    /// let (thrust, desired_orientation) = pid.compute_position_control(&desired_position, &desired_velocity, desired_yaw, &current_position, &current_velocity, dt, mass, gravity);
+    /// let dt = 0.01;
+    /// let (thrust, desired_orientation) = pid.compute_position_control(&desired_position, &desired_velocity, desired_yaw, &current_position, &current_velocity, dt);
     /// ```
     pub fn compute_position_control(
         &mut self,
@@ -456,8 +630,6 @@ impl PIDController {
         current_position: &Vector3<f32>,
         current_velocity: &Vector3<f32>,
         dt: f32,
-        mass: f32,
-        gravity: f32,
     ) -> (f32, UnitQuaternion<f32>) {
         let error_position = desired_position - current_position;
         let error_velocity = desired_velocity - current_velocity;
@@ -468,9 +640,9 @@ impl PIDController {
         let acceleration = self.kpid_pos[0].component_mul(&error_position)
             + self.kpid_pos[1].component_mul(&error_velocity)
             + self.kpid_pos[2].component_mul(&self.integral_pos_error);
-        let gravity_compensation = Vector3::new(0.0, 0.0, gravity);
+        let gravity_compensation = Vector3::new(0.0, 0.0, self.gravity);
         let total_acceleration = acceleration + gravity_compensation;
-        let thrust = mass * total_acceleration.norm();
+        let thrust = self.mass * total_acceleration.norm();
         let desired_orientation = if total_acceleration.norm() > 1e-6 {
             let z_body = total_acceleration.normalize();
             let yaw_rotation = UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw);
@@ -1091,7 +1263,7 @@ impl PlannerManager {
         current_orientation: UnitQuaternion<f32>,
         current_velocity: Vector3<f32>,
         time: f32,
-        obstacles: &Vec<Obstacle>,
+        obstacles: &[Obstacle],
     ) -> Result<(Vector3<f32>, Vector3<f32>, f32), SimulationError> {
         if self.current_planner.is_finished(current_position, time)? {
             log::info!("Time: {:.2} s,\tSwitch Hover", time);
@@ -1102,7 +1274,7 @@ impl PlannerManager {
         }
         // Update obstacles for ObstacleAvoidancePlanner if needed
         if let PlannerType::ObstacleAvoidance(ref mut planner) = self.current_planner {
-            planner.obstacles = obstacles.clone();
+            planner.obstacles = obstacles.to_owned();
         }
         Ok(self
             .current_planner
@@ -1555,8 +1727,8 @@ pub fn update_planner(
     time: f32,
     simulation_frequency: usize,
     quad: &Quadrotor,
-    obstacles: &Vec<Obstacle>,
-    planner_config: &Vec<PlannerStepConfig>,
+    obstacles: &[Obstacle],
+    planner_config: &[PlannerStepConfig],
 ) -> Result<(), SimulationError> {
     if let Some(planner_step) = planner_config
         .iter()
@@ -1606,7 +1778,7 @@ pub fn create_planner(
     step: &PlannerStepConfig,
     quad: &Quadrotor,
     time: f32,
-    obstacles: &Vec<Obstacle>,
+    obstacles: &[Obstacle],
 ) -> Result<PlannerType, SimulationError> {
     let params = &step.params;
     match step.planner_type.as_str() {
@@ -1647,7 +1819,7 @@ pub fn create_planner(
             duration: parse_f32(params, "duration")?,
             start_yaw: quad.orientation.euler_angles().2,
             end_yaw: parse_f32(params, "end_yaw")?,
-            obstacles: obstacles.clone(),
+            obstacles: obstacles.to_owned(),
             k_att: parse_f32(params, "k_att")?,
             k_rep: parse_f32(params, "k_rep")?,
             k_vortex: parse_f32(params, "k_vortex")?,
@@ -1666,9 +1838,9 @@ pub fn create_planner(
                         w.as_sequence()
                             .and_then(|coords| {
                                 Some(Vector3::new(
-                                    coords.get(0)?.as_f64()? as f32,
-                                    coords.get(1)?.as_f64()? as f32,
-                                    coords.get(2)?.as_f64()? as f32,
+                                    coords[0].as_f64()? as f32,
+                                    coords[1].as_f64()? as f32,
+                                    coords[2].as_f64()? as f32,
                                 ))
                             })
                             .ok_or(SimulationError::OtherError("Invalid waypoint".to_string()))
@@ -2077,11 +2249,11 @@ impl Camera {
         }
         // Early exit if we've hit a wall closer than any possible obstacle
         if closest_hit <= self.near {
-            return Ok(std::f32::INFINITY);
+            return Ok(f32::INFINITY);
         }
         // Inline sphere intersection
         for obstacle in &maze.obstacles {
-            let oc = origin - &obstacle.position;
+            let oc = origin - obstacle.position;
             let b = oc.dot(direction);
             let c = oc.dot(&oc) - obstacle.radius * obstacle.radius;
             let discriminant = b * b - c;
@@ -2096,7 +2268,7 @@ impl Camera {
         if closest_hit < self.far {
             Ok((rotation_world_to_camera * direction * closest_hit).x)
         } else {
-            Ok(std::f32::INFINITY)
+            Ok(f32::INFINITY)
         }
     }
 }
@@ -2387,7 +2559,7 @@ pub fn log_mesh(
 /// ```
 pub fn log_depth_image(
     rec: &rerun::RecordingStream,
-    depth_image: &Vec<f32>,
+    depth_image: &[f32],
     width: usize,
     height: usize,
     min_depth: f32,

@@ -1,5 +1,6 @@
 use nalgebra::Vector3;
 use peng_quad::*;
+/// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
     env_logger::builder()
         .parse_env(env_logger::Env::default().default_filter_or("info"))
@@ -28,6 +29,8 @@ fn main() -> Result<(), SimulationError> {
         [_att_gains.kp, _att_gains.kd, _att_gains.ki],
         config.pid_controller.pos_max_int,
         config.pid_controller.att_max_int,
+        config.quadrotor.mass,
+        config.quadrotor.gravity,
     );
     let mut imu = Imu::new(
         config.imu.accel_noise_std,
@@ -53,7 +56,7 @@ fn main() -> Result<(), SimulationError> {
     let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
-    let planner_config = config
+    let planner_config: Vec<PlannerStepConfig> = config
         .planner_schedule
         .iter()
         .map(|step| PlannerStepConfig {
@@ -71,9 +74,9 @@ fn main() -> Result<(), SimulationError> {
     };
     if let Some(rec) = &rec {
         rec.set_time_seconds("timestamp", 0);
-        log_mesh(&rec, config.mesh.division, config.mesh.spacing)?;
-        log_maze_tube(&rec, &maze)?;
-        log_maze_obstacles(&rec, &maze)?;
+        log_mesh(rec, config.mesh.division, config.mesh.spacing)?;
+        log_maze_tube(rec, &maze)?;
+        log_maze_obstacles(rec, &maze)?;
     }
     log::info!("Starting simulation...");
     let mut i = 0;
@@ -103,8 +106,6 @@ fn main() -> Result<(), SimulationError> {
             &quad.position,
             &quad.velocity,
             quad.time_step,
-            quad.mass,
-            quad.gravity,
         );
         let torque = controller.compute_attitude_control(
             &calculated_desired_orientation,
@@ -113,11 +114,17 @@ fn main() -> Result<(), SimulationError> {
             quad.time_step,
         );
         if i % (config.simulation.simulation_frequency / config.simulation.control_frequency) == 0 {
-            quad.update_dynamics_with_controls(thrust, &torque);
+            if config.use_rk4_for_dynamics_control {
+                quad.update_dynamics_with_controls_rk4(thrust, &torque);
+            } else {
+                quad.update_dynamics_with_controls_euler(thrust, &torque);
+            }
             previous_thrust = thrust;
             previous_torque = torque;
+        } else if config.use_rk4_for_dynamics_update {
+            quad.update_dynamics_with_controls_rk4(previous_thrust, &previous_torque);
         } else {
-            quad.update_dynamics_with_controls(previous_thrust, &previous_torque);
+            quad.update_dynamics_with_controls_euler(previous_thrust, &previous_torque);
         }
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
@@ -135,10 +142,10 @@ fn main() -> Result<(), SimulationError> {
             if let Some(rec) = &rec {
                 rec.set_time_seconds("timestamp", time);
                 if trajectory.add_point(quad.position) {
-                    log_trajectory(&rec, &trajectory)?;
+                    log_trajectory(rec, &trajectory)?;
                 }
                 log_data(
-                    &rec,
+                    rec,
                     &quad,
                     &desired_position,
                     &desired_velocity,
@@ -147,7 +154,7 @@ fn main() -> Result<(), SimulationError> {
                 )?;
                 if config.render_depth {
                     log_depth_image(
-                        &rec,
+                        rec,
                         &depth_buffer,
                         camera.resolution.0,
                         camera.resolution.1,
@@ -155,7 +162,7 @@ fn main() -> Result<(), SimulationError> {
                         camera.far,
                     )?;
                 }
-                log_maze_obstacles(&rec, &maze)?;
+                log_maze_obstacles(rec, &maze)?;
             }
         }
         i += 1;
