@@ -185,38 +185,30 @@ impl Quadrotor {
         let state = self.get_state();
 
         let k1 = self.state_derivative(&state, control_thrust, control_torque);
-        let k2 = self.state_derivative(
-            &(state
-                .iter()
-                .zip(k1.iter())
-                .map(|(s, k)| s + 0.5 * h * k)
-                .collect::<Vec<f32>>()),
-            control_thrust,
-            control_torque,
-        );
-        let k3 = self.state_derivative(
-            &(state
-                .iter()
-                .zip(k2.iter())
-                .map(|(s, k)| s + 0.5 * h * k)
-                .collect::<Vec<f32>>()),
-            control_thrust,
-            control_torque,
-        );
-        let k4 = self.state_derivative(
-            &(state
-                .iter()
-                .zip(k3.iter())
-                .map(|(s, k)| s + h * k)
-                .collect::<Vec<f32>>()),
-            control_thrust,
-            control_torque,
-        );
-        let new_state: Vec<f32> = state
-            .iter()
-            .zip(k1.iter().zip(k2.iter().zip(k3.iter().zip(k4.iter()))))
-            .map(|(s, (k1, (k2, (k3, k4))))| s + (h / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4))
-            .collect();
+        let mut temp_state = [0.0; 13];
+        for i in 0..13 {
+            temp_state[i] = state[i] + 0.5 * h * k1[i];
+        }
+        let k2 = self.state_derivative(&temp_state, control_thrust, control_torque);
+
+        for i in 0..13 {
+            temp_state[i] = state[i] + 0.5 * h * k2[i];
+        }
+        let k3 = self.state_derivative(&temp_state, control_thrust, control_torque);
+
+        for i in 0..13 {
+            temp_state[i] = state[i] + h * k3[i];
+        }
+        let k4 = self.state_derivative(&temp_state, control_thrust, control_torque);
+
+        let mut new_state = [0.0; 13];
+        for i in 0..13 {
+            new_state[i] = state[i] + (h / 6.0) * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
+        }
+
+        let mut q = Quaternion::new(new_state[9], new_state[6], new_state[7], new_state[8]);
+        q = q.normalize();
+        new_state[6..10].copy_from_slice(q.coords.as_slice());
 
         self.set_state(&new_state);
     }
@@ -233,12 +225,12 @@ impl Quadrotor {
     /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
     /// let state = quadrotor.get_state();
     /// ```
-    pub fn get_state(&self) -> Vec<f32> {
-        let mut state = Vec::with_capacity(13);
-        state.extend_from_slice(self.position.as_slice());
-        state.extend_from_slice(self.velocity.as_slice());
-        state.extend_from_slice(self.orientation.coords.as_slice());
-        state.extend_from_slice(self.angular_velocity.as_slice());
+    pub fn get_state(&self) -> [f32; 13] {
+        let mut state = [0.0; 13];
+        state[0..3].copy_from_slice(self.position.as_slice());
+        state[3..6].copy_from_slice(self.velocity.as_slice());
+        state[6..10].copy_from_slice(self.orientation.coords.as_slice());
+        state[10..13].copy_from_slice(self.angular_velocity.as_slice());
         state
     }
     /// Sets the state of the quadrotor
@@ -257,7 +249,7 @@ impl Quadrotor {
     /// ];
     /// quadrotor.set_state(&state);
     /// ```
-    pub fn set_state(&mut self, state: &[f32]) {
+    pub fn set_state(&mut self, state: &[f32; 13]) {
         self.position = Vector3::from_column_slice(&state[0..3]);
         self.velocity = Vector3::from_column_slice(&state[3..6]);
         self.orientation = UnitQuaternion::from_quaternion(Quaternion::new(
@@ -292,7 +284,7 @@ impl Quadrotor {
         state: &[f32],
         control_thrust: f32,
         control_torque: &Vector3<f32>,
-    ) -> Vec<f32> {
+    ) -> [f32; 13] {
         let velocity = Vector3::from_column_slice(&state[3..6]);
         let orientation = UnitQuaternion::from_quaternion(Quaternion::new(
             state[9], state[6], state[7], state[8],
@@ -312,11 +304,11 @@ impl Quadrotor {
         let gyroscopic_torque = angular_velocity.cross(&inertia_angular_velocity);
         let angular_acceleration = self.inertia_matrix_inv * (control_torque - gyroscopic_torque);
 
-        let mut derivative = Vec::with_capacity(13);
-        derivative.extend_from_slice(velocity.as_slice());
-        derivative.extend_from_slice(acceleration.as_slice());
-        derivative.extend_from_slice(q_dot.coords.as_slice());
-        derivative.extend_from_slice(angular_acceleration.as_slice());
+        let mut derivative = [0.0; 13];
+        derivative[0..3].copy_from_slice(velocity.as_slice());
+        derivative[3..6].copy_from_slice(acceleration.as_slice());
+        derivative[6..10].copy_from_slice(q_dot.coords.as_slice());
+        derivative[10..13].copy_from_slice(angular_acceleration.as_slice());
         derivative
     }
     /// Simulates IMU readings
