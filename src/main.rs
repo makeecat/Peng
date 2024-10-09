@@ -161,6 +161,16 @@ fn main() -> Result<(), SimulationError> {
                         camera.near,
                         camera.far,
                     )?;
+                    pinhole_depth(
+                        rec,
+                        camera.resolution.0,
+                        camera.resolution.1,
+                        camera.fov,
+                        quad.position,
+                        quad.orientation,
+                        config.camera.rotation_transform,
+                        &depth_buffer,
+                    )?;
                 }
                 log_maze_obstacles(rec, &maze)?;
             }
