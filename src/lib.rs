@@ -2592,7 +2592,19 @@ pub fn log_depth_image(
 /// * `cam_orientation` - The orientation quaternion of quad
 /// * `cam_transform` - The transform matrix between quad and camera alignment
 /// * `depth_image` - The depth image data
-///
+/// # Errors
+/// * If the data cannot be logged to the recording stream
+/// # Example
+/// ```no_run
+/// use peng_quad::pinhole_depth;
+/// use nalgebra::{Vector3, UnitQuaternion};
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let depth_image = vec![ 0.0f32 ; 640 * 480];
+/// let cam_position = Vector3::new(0.0,0.0,0.0);
+/// let cam_orientation = UnitQuaternion::identity();
+/// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
+/// pinhole_depth(&rec, 640, 480, 90.0, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+
 pub fn pinhole_depth(
     rec: &rerun::RecordingStream,
     width: usize,
