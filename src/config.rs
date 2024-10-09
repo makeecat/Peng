@@ -133,6 +133,8 @@ pub struct CameraConfig {
     pub near: f32,
     /// Camera far clipping plane in meters
     pub far: f32,
+    /// Camera transform matrix for depth
+    pub rotation_transform: [f32; 9]
 }
 
 #[derive(serde::Deserialize)]

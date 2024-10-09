@@ -2582,6 +2582,59 @@ pub fn log_depth_image(
     rec.log("world/quad/cam/depth", &rerun_image)?;
     Ok(())
 }
+/// creates pinhole camera
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `width` - The width component of the camera resolution
+/// * `height` - The height component of the camera resolution
+/// * `fov` - The fov of the camera
+/// * `cam_position` - The position vector of the camera (aligns with the quad)
+/// * `cam_orientation` - The orientation quaternion of quad
+/// * `cam_transform` - The transform matrix between quad and camera alignment
+/// * `depth_image` - The depth image data
+///
+pub fn pinhole_depth(
+    rec: &rerun::RecordingStream,
+    width: usize,
+    height: usize,
+    fov: f32,
+    cam_position: Vector3<f32>,
+    cam_orientation: UnitQuaternion<f32>,
+    cam_transform: [f32; 9],
+    depth_image: &[f32],
+) -> Result<(), SimulationError> {
+    let pinhole_camera =
+        rerun::Pinhole::from_fov_and_aspect_ratio(fov / 180.0 * PI, width as f32 / height as f32)
+            .with_camera_xyz(rerun::components::ViewCoordinates::RDF)
+            .with_resolution((width as f32, height as f32))
+            .with_principal_point((width as f32 / 2.0, height as f32 / 2.0));
+    let rotated_camera_orientation = UnitQuaternion::from_rotation_matrix(
+        &(cam_orientation.to_rotation_matrix()
+            * Rotation3::from_matrix_unchecked(Matrix3::from_row_slice(&cam_transform))),
+    );
+    let cam_transform = rerun::Transform3D::from_translation_rotation(
+        rerun::Vec3D::new(cam_position.x, cam_position.y, cam_position.z),
+        rerun::Quaternion::from_xyzw([
+            rotated_camera_orientation.i,
+            rotated_camera_orientation.j,
+            rotated_camera_orientation.k,
+            rotated_camera_orientation.w,
+        ]),
+    );
+    rec.log("world/quad/cam", &cam_transform)?;
+    rec.log("world/quad/cam", &pinhole_camera)?;
+    let depth_image_rerun =
+        rerun::external::ndarray::Array::from_shape_vec((height, width), depth_image.to_vec())
+            .unwrap();
+    rec.log(
+        "world/quad/cam/rerun_depth",
+        &rerun::DepthImage::try_from(depth_image_rerun)
+            .unwrap()
+            .with_meter(1.0),
+    )?;
+
+    Ok(())
+}
 /// turbo color map function
 /// # Arguments
 /// * `gray` - The gray value in the range [0, 255]
