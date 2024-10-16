@@ -165,6 +165,7 @@ fn main() -> Result<(), SimulationError> {
                         rec,
                         camera.resolution.0,
                         camera.resolution.1,
+                        config.camera.fov_x.to_radians(),
                         camera.fov,
                         quad.position,
                         quad.orientation,
