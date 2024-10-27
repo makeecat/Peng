@@ -31,6 +31,8 @@ pub struct Config {
     pub use_rk4_for_dynamics_control: bool,
     /// Use RK4 for updating quadrotor dynamics without controls
     pub use_rk4_for_dynamics_update: bool,
+    // Run the simulation in real time mode
+    pub real_time: bool,
 }
 
 #[derive(serde::Deserialize)]
