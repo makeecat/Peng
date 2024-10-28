@@ -1,5 +1,10 @@
+#![feature(thread_sleep_until)]
 use nalgebra::Vector3;
 use peng_quad::*;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
+
 /// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
     env_logger::builder()
@@ -80,7 +85,15 @@ fn main() -> Result<(), SimulationError> {
     }
     log::info!("Starting simulation...");
     let mut i = 0;
+    let frame_time = Duration::from_secs_f32(1.0 / config.simulation.simulation_frequency as f32);
+    let mut next_frame = Instant::now();
+    println!("frame_time: {:?}", frame_time);
     loop {
+        // If real-time mode is enabled, sleep until the next frame simulation frame
+        if config.real_time {
+            thread::sleep_until(next_frame);
+            next_frame += frame_time;
+        }
         let time = quad.time_step * i as f32;
         maze.update_obstacles(quad.time_step);
         update_planner(
