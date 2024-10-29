@@ -2615,7 +2615,7 @@ pub fn pinhole_depth(
     cam_transform: [f32; 9],
     depth_image: &[f32],
 ) -> Result<(), SimulationError> {
-    let fov_x = (width as f32 / height as f32).atan() * 2.0;
+    let fov_x = (width as f32 / height as f32 * (fov / 2.0).tan()).atan() * 2.0;
     let horizontal_focal_length = (width as f32 / 2.0) / ((fov_x/ 2.0).tan());
     let vertical_focal_length = (height as f32 / 2.0) / ((fov / 2.0).tan());
     let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
