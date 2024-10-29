@@ -2609,15 +2609,15 @@ pub fn pinhole_depth(
     rec: &rerun::RecordingStream,
     width: usize,
     height: usize,
-    fov_x: f32,
-    fov_y: f32,
+    fov: f32,
     cam_position: Vector3<f32>,
     cam_orientation: UnitQuaternion<f32>,
     cam_transform: [f32; 9],
     depth_image: &[f32],
 ) -> Result<(), SimulationError> {
-    let horizontal_focal_length = (width as f32 / 2.0) / ((fov_x / 2.0).tan());
-    let vertical_focal_length = (height as f32 / 2.0) / ((fov_y / 2.0).tan());
+    let fov_x = (width as f32 / height as f32).atan() * 2.0;
+    let horizontal_focal_length = (width as f32 / 2.0) / ((fov_x/ 2.0).tan());
+    let vertical_focal_length = (height as f32 / 2.0) / ((fov / 2.0).tan());
     let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
         (horizontal_focal_length, vertical_focal_length),
         (width as f32, height as f32),
