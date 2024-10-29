@@ -127,12 +127,14 @@ pub struct MazeConfig {
 pub struct CameraConfig {
     /// Camera resolution in pixels (width, height)
     pub resolution: (usize, usize),
-    /// Camera field of view in degrees
+    /// Camera field of view in height in degrees
     pub fov: f32,
     /// Camera near clipping plane in meters
     pub near: f32,
     /// Camera far clipping plane in meters
     pub far: f32,
+    /// Camera transform matrix for depth
+    pub rotation_transform: [f32; 9]
 }
 
 #[derive(serde::Deserialize)]

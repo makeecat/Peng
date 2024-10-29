@@ -2582,6 +2582,76 @@ pub fn log_depth_image(
     rec.log("world/quad/cam/depth", &rerun_image)?;
     Ok(())
 }
+/// creates pinhole camera
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `width` - The width component of the camera resolution
+/// * `height` - The height component of the camera resolution
+/// * `fov` - The fov of the camera
+/// * `cam_position` - The position vector of the camera (aligns with the quad)
+/// * `cam_orientation` - The orientation quaternion of quad
+/// * `cam_transform` - The transform matrix between quad and camera alignment
+/// * `depth_image` - The depth image data
+/// # Errors
+/// * If the data cannot be logged to the recording stream
+/// # Example
+/// ```no_run
+/// use peng_quad::pinhole_depth;
+/// use nalgebra::{Vector3, UnitQuaternion};
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let depth_image = vec![ 0.0f32 ; 640 * 480];
+/// let cam_position = Vector3::new(0.0,0.0,0.0);
+/// let cam_orientation = UnitQuaternion::identity();
+/// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
+/// pinhole_depth(&rec, 128usize, 96usize, 90.0, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+
+pub fn pinhole_depth(
+    rec: &rerun::RecordingStream,
+    width: usize,
+    height: usize,
+    fov: f32,
+    cam_position: Vector3<f32>,
+    cam_orientation: UnitQuaternion<f32>,
+    cam_transform: [f32; 9],
+    depth_image: &[f32],
+) -> Result<(), SimulationError> {
+    let fov_x = (width as f32 / height as f32 * (fov / 2.0).tan()).atan() * 2.0;
+    let horizontal_focal_length = (width as f32 / 2.0) / ((fov_x/ 2.0).tan());
+    let vertical_focal_length = (height as f32 / 2.0) / ((fov / 2.0).tan());
+    let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
+        (horizontal_focal_length, vertical_focal_length),
+        (width as f32, height as f32),
+    )
+        .with_camera_xyz(rerun::components::ViewCoordinates::RDF)
+        .with_resolution((width as f32, height as f32))
+        .with_principal_point((width as f32 / 2.0, height as f32 / 2.0));
+    let rotated_camera_orientation = UnitQuaternion::from_rotation_matrix(
+        &(cam_orientation.to_rotation_matrix()
+            * Rotation3::from_matrix_unchecked(Matrix3::from_row_slice(&cam_transform))),
+    );
+    let cam_transform = rerun::Transform3D::from_translation_rotation(
+        rerun::Vec3D::new(cam_position.x, cam_position.y, cam_position.z),
+        rerun::Quaternion::from_xyzw([
+            rotated_camera_orientation.i,
+            rotated_camera_orientation.j,
+            rotated_camera_orientation.k,
+            rotated_camera_orientation.w,
+        ]),
+    );
+    rec.log("world/quad/cam", &cam_transform)?;
+    rec.log("world/quad/cam", &pinhole_camera)?;
+    let depth_image_rerun =
+        rerun::external::ndarray::Array::from_shape_vec((height, width), depth_image.to_vec())
+            .unwrap();
+    rec.log(
+        "world/quad/cam/rerun_depth",
+        &rerun::DepthImage::try_from(depth_image_rerun)
+            .unwrap()
+            .with_meter(1.0),
+    )?;
+
+    Ok(())
+}
 /// turbo color map function
 /// # Arguments
 /// * `gray` - The gray value in the range [0, 255]
