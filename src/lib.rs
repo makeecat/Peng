@@ -2603,7 +2603,7 @@ pub fn log_depth_image(
 /// let cam_position = Vector3::new(0.0,0.0,0.0);
 /// let cam_orientation = UnitQuaternion::identity();
 /// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
-/// pinhole_depth(&rec, 128, 96, 90.0.to_radians(), 106.26.to_radians(), cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+/// pinhole_depth(&rec, 128usize, 96usize, 90.0, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
 
 pub fn pinhole_depth(
     rec: &rerun::RecordingStream,
