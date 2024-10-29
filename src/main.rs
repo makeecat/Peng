@@ -163,8 +163,7 @@ fn main() -> Result<(), SimulationError> {
                     )?;
                     pinhole_depth(
                         rec,
-                        camera.resolution.0,
-                        camera.resolution.1,
+                        camera.resolution,
                         camera.fov,
                         quad.position,
                         quad.orientation,
