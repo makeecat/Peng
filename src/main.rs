@@ -47,7 +47,7 @@ fn main() -> Result<(), SimulationError> {
     );
     let camera = Camera::new(
         config.camera.resolution,
-        config.camera.fov.to_radians(),
+        config.camera.fov_vertical.to_radians(),
         config.camera.near,
         config.camera.far,
     );
@@ -156,15 +156,13 @@ fn main() -> Result<(), SimulationError> {
                     log_depth_image(
                         rec,
                         &depth_buffer,
-                        camera.resolution.0,
-                        camera.resolution.1,
+                        camera.resolution,
                         camera.near,
                         camera.far,
                     )?;
                     pinhole_depth(
                         rec,
-                        camera.resolution,
-                        camera.fov,
+                        &camera,
                         quad.position,
                         quad.orientation,
                         config.camera.rotation_transform,

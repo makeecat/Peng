@@ -128,7 +128,7 @@ pub struct CameraConfig {
     /// Camera resolution in pixels (width, height)
     pub resolution: (usize, usize),
     /// Camera field of view in height in degrees
-    pub fov: f32,
+    pub fov_vertical: f32,
     /// Camera near clipping plane in meters
     pub near: f32,
     /// Camera far clipping plane in meters

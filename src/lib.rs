@@ -2088,8 +2088,14 @@ impl Maze {
 pub struct Camera {
     /// The resolution of the camera
     pub resolution: (usize, usize),
-    /// The field of view of the camera
-    pub fov: f32,
+    /// The vertical field of view of the camera
+    pub fov_vertical: f32,
+    /// The horizontal field of view of the camera
+    pub fov_horizontal: f32,
+    /// The vertical focal length of the camera
+    pub vertical_focal_length: f32,
+    /// The horizontal focal length of the camera
+    pub horizontal_focal_length: f32,
     /// The near clipping plane of the camera
     pub near: f32,
     /// The far clipping plane of the camera
@@ -2104,7 +2110,7 @@ impl Camera {
     /// Creates a new camera with the given resolution, field of view, near and far clipping planes
     /// # Arguments
     /// * `resolution` - The resolution of the camera
-    /// * `fov` - The field of view of the camera
+    /// * `fov_vertical` - The vertical field of view of the camera
     /// * `near` - The near clipping plane of the camera
     /// * `far` - The far clipping plane of the camera
     /// # Returns
@@ -2114,9 +2120,10 @@ impl Camera {
     /// use peng_quad::Camera;
     /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
     /// ```
-    pub fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
+    pub fn new(resolution: (usize, usize), fov_vertical: f32, near: f32, far: f32) -> Self {
         let (width, height) = resolution;
-        let (aspect_ratio, tan_half_fov) = (width as f32 / height as f32, (fov / 2.0).tan());
+        let (aspect_ratio, tan_half_fov) =
+            (width as f32 / height as f32, (fov_vertical / 2.0).tan());
         let mut ray_directions = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
@@ -2125,9 +2132,16 @@ impl Camera {
                 ray_directions.push(Vector3::new(1.0, x_ndc, y_ndc).normalize());
             }
         }
+        let fov_horizontal =
+            (width as f32 / height as f32 * (fov_vertical / 2.0).tan()).atan() * 2.0;
+        let horizontal_focal_length = (width as f32 / 2.0) / ((fov_horizontal / 2.0).tan());
+        let vertical_focal_length = (height as f32 / 2.0) / ((fov_vertical / 2.0).tan());
         Self {
             resolution,
-            fov,
+            fov_vertical,
+            fov_horizontal,
+            vertical_focal_length,
+            horizontal_focal_length,
             near,
             far,
             aspect_ratio,
@@ -2536,8 +2550,7 @@ pub fn log_mesh(
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `depth_image` - The depth image data
-/// * `width` - The width of the depth image
-/// * `height` - The height of the depth image
+/// * `resolution` - The width and height of the depth image
 /// * `min_depth` - The minimum depth value
 /// * `max_depth` - The maximum depth value
 /// # Errors
@@ -2547,16 +2560,16 @@ pub fn log_mesh(
 /// use peng_quad::log_depth_image;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![0.0; 640 * 480];
-/// log_depth_image(&rec, &depth_image, 640, 480, 0.0, 1.0).unwrap();
+/// log_depth_image(&rec, &depth_image, (640usize, 480usize), 0.0, 1.0).unwrap();
 /// ```
 pub fn log_depth_image(
     rec: &rerun::RecordingStream,
     depth_image: &[f32],
-    width: usize,
-    height: usize,
+    resolution: (usize, usize),
     min_depth: f32,
     max_depth: f32,
 ) -> Result<(), SimulationError> {
+    let (width, height) = resolution;
     let mut image = rerun::external::ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
     image
@@ -2585,9 +2598,7 @@ pub fn log_depth_image(
 /// creates pinhole camera
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
-/// * `width` - The width component of the camera resolution
-/// * `height` - The height component of the camera resolution
-/// * `fov` - The fov of the camera
+/// * `cam` - The camera object
 /// * `cam_position` - The position vector of the camera (aligns with the quad)
 /// * `cam_orientation` - The orientation quaternion of quad
 /// * `cam_transform` - The transform matrix between quad and camera alignment
@@ -2596,31 +2607,27 @@ pub fn log_depth_image(
 /// * If the data cannot be logged to the recording stream
 /// # Example
 /// ```no_run
-/// use peng_quad::pinhole_depth;
+/// use peng_quad::{pinhole_depth, Camera};
 /// use nalgebra::{Vector3, UnitQuaternion};
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![ 0.0f32 ; 640 * 480];
 /// let cam_position = Vector3::new(0.0,0.0,0.0);
 /// let cam_orientation = UnitQuaternion::identity();
 /// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
-/// pinhole_depth(&rec, (128usize, 96usize), 90.0, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+/// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
+/// pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
 
 pub fn pinhole_depth(
     rec: &rerun::RecordingStream,
-    resolution: (usize, usize),
-    fov: f32,
+    cam: &Camera,
     cam_position: Vector3<f32>,
     cam_orientation: UnitQuaternion<f32>,
     cam_transform: [f32; 9],
     depth_image: &[f32],
 ) -> Result<(), SimulationError> {
-    let width = resolution.0;
-    let height = resolution.1;
-    let fov_x = (width as f32 / height as f32 * (fov / 2.0).tan()).atan() * 2.0;
-    let horizontal_focal_length = (width as f32 / 2.0) / ((fov_x / 2.0).tan());
-    let vertical_focal_length = (height as f32 / 2.0) / ((fov / 2.0).tan());
+    let (width, height) = cam.resolution;
     let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
-        (horizontal_focal_length, vertical_focal_length),
+        (cam.horizontal_focal_length, cam.vertical_focal_length),
         (width as f32, height as f32),
     )
     .with_camera_xyz(rerun::components::ViewCoordinates::RDF)
