@@ -1978,6 +1978,8 @@ impl Obstacle {
 /// # Example
 /// ```
 /// use peng_quad::{Maze, Obstacle};
+/// use rand_chacha::ChaCha8Rng;
+/// use rand::SeedableRng;
 /// use nalgebra::Vector3;
 /// let maze = Maze {
 ///     lower_bounds: [0.0, 0.0, 0.0],
@@ -1985,6 +1987,7 @@ impl Obstacle {
 ///     obstacles: vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)],
 ///     obstacles_velocity_bounds: [0.0, 0.0, 0.0],
 ///     obstacles_radius_bounds: [0.0, 0.0],
+///     rng: ChaCha8Rng::from_entropy(),
 /// };
 /// ```
 pub struct Maze {
@@ -1998,6 +2001,8 @@ pub struct Maze {
     pub obstacles_velocity_bounds: [f32; 3],
     /// The bounds of the obstacles' radius
     pub obstacles_radius_bounds: [f32; 2],
+    /// Rng for generating random numbers
+    pub rng: ChaCha8Rng,
 }
 /// Implementation of the maze
 impl Maze {
@@ -2026,6 +2031,7 @@ impl Maze {
             obstacles: Vec::new(),
             obstacles_velocity_bounds,
             obstacles_radius_bounds,
+            rng: ChaCha8Rng::from_entropy(),
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -2040,22 +2046,21 @@ impl Maze {
     /// maze.generate_obstacles(5);
     /// ```
     pub fn generate_obstacles(&mut self, num_obstacles: usize) {
-        let mut rng = ChaCha8Rng::from_entropy();
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[0]..self.upper_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[1]..self.upper_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[2]..self.upper_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[0]..self.upper_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[1]..self.upper_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[2]..self.upper_bounds[2]),
                 );
                 let v_bounds = self.obstacles_velocity_bounds;
                 let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, -v_bounds[0]..v_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[1]..v_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[2]..v_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut rng, r_bounds[0]..r_bounds[1]);
+                let radius = rand::Rng::gen_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
