@@ -36,8 +36,8 @@ imu:
   gyro_bias_std: 0.0001 # Standard deviation of gyroscope bias instability (rad/s)
 
 maze:
-  lower_bounds: [-3.0, -2.0, 0.0] # Lower bounds of the maze [x, y, z] (m)
-  upper_bounds: [3.0, 2.0, 2.0] # Upper bounds of the maze [x, y, z] (m)
+  lower_bounds: [-4.0, -2.0, 0.0] # Lower bounds of the maze [x, y, z] (m)
+  upper_bounds: [4.0, 2.0, 2.0] # Upper bounds of the maze [x, y, z] (m)
   num_obstacles: 20 # Number of obstacles in the maze
   obstacles_velocity_bounds: [0.2, 0.2, 0.1] # Maximum velocity of obstacles [x, y, z] (m/s)
   obstacles_radius_bounds: [0.05, 0.1] # Range of obstacle radii [min, max] (m)

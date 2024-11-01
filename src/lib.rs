@@ -634,9 +634,10 @@ impl PIDController {
             + self.kpid_pos[2].component_mul(&self.integral_pos_error);
         let gravity_compensation = Vector3::new(0.0, 0.0, self.gravity);
         let total_acceleration = acceleration + gravity_compensation;
-        let thrust = self.mass * total_acceleration.norm();
-        let desired_orientation = if total_acceleration.norm() > 1e-6 {
-            let z_body = total_acceleration.normalize();
+        let total_acc_norm = total_acceleration.norm();
+        let thrust = self.mass * total_acc_norm;
+        let desired_orientation = if total_acc_norm > 1e-6 {
+            let z_body = total_acceleration / total_acc_norm;
             let yaw_rotation = UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw);
             let x_body_horizontal = yaw_rotation * Vector3::new(1.0, 0.0, 0.0);
             let y_body = z_body.cross(&x_body_horizontal).normalize();
@@ -915,7 +916,10 @@ impl Planner for MinimumJerkLinePlanner {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
-        let s = 10.0 * t.powi(3) - 15.0 * t.powi(4) + 6.0 * t.powi(5);
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let t4 = t3 * t;
+        let s = 10.0 * t2 - 15.0 * t3 + 6.0 * t4;
         let s_dot = (30.0 * t.powi(2) - 60.0 * t.powi(3) + 30.0 * t.powi(4)) / self.duration;
         let position = self.start_position + (self.end_position - self.start_position) * s;
         let velocity = (self.end_position - self.start_position) * s_dot;
@@ -1975,6 +1979,8 @@ impl Obstacle {
 /// # Example
 /// ```
 /// use peng_quad::{Maze, Obstacle};
+/// use rand_chacha::ChaCha8Rng;
+/// use rand::SeedableRng;
 /// use nalgebra::Vector3;
 /// let maze = Maze {
 ///     lower_bounds: [0.0, 0.0, 0.0],
@@ -1982,6 +1988,7 @@ impl Obstacle {
 ///     obstacles: vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)],
 ///     obstacles_velocity_bounds: [0.0, 0.0, 0.0],
 ///     obstacles_radius_bounds: [0.0, 0.0],
+///     rng: ChaCha8Rng::from_entropy(),
 /// };
 /// ```
 pub struct Maze {
@@ -1995,6 +2002,8 @@ pub struct Maze {
     pub obstacles_velocity_bounds: [f32; 3],
     /// The bounds of the obstacles' radius
     pub obstacles_radius_bounds: [f32; 2],
+    /// Rng for generating random numbers
+    pub rng: ChaCha8Rng,
 }
 /// Implementation of the maze
 impl Maze {
@@ -2023,6 +2032,7 @@ impl Maze {
             obstacles: Vec::new(),
             obstacles_velocity_bounds,
             obstacles_radius_bounds,
+            rng: ChaCha8Rng::from_entropy(),
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -2037,22 +2047,21 @@ impl Maze {
     /// maze.generate_obstacles(5);
     /// ```
     pub fn generate_obstacles(&mut self, num_obstacles: usize) {
-        let mut rng = ChaCha8Rng::from_entropy();
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[0]..self.upper_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[1]..self.upper_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[2]..self.upper_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[0]..self.upper_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[1]..self.upper_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[2]..self.upper_bounds[2]),
                 );
                 let v_bounds = self.obstacles_velocity_bounds;
                 let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, -v_bounds[0]..v_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[1]..v_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[2]..v_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut rng, r_bounds[0]..r_bounds[1]);
+                let radius = rand::Rng::gen_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
@@ -2181,15 +2190,28 @@ impl Camera {
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
+
+        const CHUNK_SIZE: usize = 64;
         if use_multi_threading {
             depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
             depth_buffer
-                .par_iter_mut()
+                .par_chunks_mut(CHUNK_SIZE)
                 .enumerate()
-                .try_for_each(|(i, depth)| {
-                    let direction = rotation_camera_to_world * self.ray_directions[i];
-                    *depth =
-                        self.ray_cast(quad_position, &rotation_world_to_camera, &direction, maze)?;
+                .try_for_each(|(chunk_idx, chunk)| {
+                    let start_idx = chunk_idx * CHUNK_SIZE;
+                    for (i, depth) in chunk.iter_mut().enumerate() {
+                        let ray_idx = start_idx + i;
+                        if ray_idx >= total_pixels {
+                            break;
+                        }
+                        let direction = rotation_camera_to_world * self.ray_directions[ray_idx];
+                        *depth = self.ray_cast(
+                            quad_position,
+                            &rotation_world_to_camera,
+                            &direction,
+                            maze,
+                        )?;
+                    }
                     Ok::<(), SimulationError>(())
                 })?;
         } else {
