@@ -634,9 +634,10 @@ impl PIDController {
             + self.kpid_pos[2].component_mul(&self.integral_pos_error);
         let gravity_compensation = Vector3::new(0.0, 0.0, self.gravity);
         let total_acceleration = acceleration + gravity_compensation;
-        let thrust = self.mass * total_acceleration.norm();
-        let desired_orientation = if total_acceleration.norm() > 1e-6 {
-            let z_body = total_acceleration.normalize();
+        let total_acc_norm = total_acceleration.norm();
+        let thrust = self.mass * total_acc_norm;
+        let desired_orientation = if total_acc_norm > 1e-6 {
+            let z_body = total_acceleration / total_acc_norm;
             let yaw_rotation = UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw);
             let x_body_horizontal = yaw_rotation * Vector3::new(1.0, 0.0, 0.0);
             let y_body = z_body.cross(&x_body_horizontal).normalize();
