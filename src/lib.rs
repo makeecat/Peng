@@ -915,7 +915,10 @@ impl Planner for MinimumJerkLinePlanner {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
-        let s = 10.0 * t.powi(3) - 15.0 * t.powi(4) + 6.0 * t.powi(5);
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let t4 = t3 * t;
+        let s = 10.0 * t2 - 15.0 * t3 + 6.0 * t4;
         let s_dot = (30.0 * t.powi(2) - 60.0 * t.powi(3) + 30.0 * t.powi(4)) / self.duration;
         let position = self.start_position + (self.end_position - self.start_position) * s;
         let velocity = (self.end_position - self.start_position) * s_dot;
