@@ -2189,15 +2189,28 @@ impl Camera {
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
+
+        const CHUNK_SIZE: usize = 64;
         if use_multi_threading {
             depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
             depth_buffer
-                .par_iter_mut()
+                .par_chunks_mut(CHUNK_SIZE)
                 .enumerate()
-                .try_for_each(|(i, depth)| {
-                    let direction = rotation_camera_to_world * self.ray_directions[i];
-                    *depth =
-                        self.ray_cast(quad_position, &rotation_world_to_camera, &direction, maze)?;
+                .try_for_each(|(chunk_idx, chunk)| {
+                    let start_idx = chunk_idx * CHUNK_SIZE;
+                    for (i, depth) in chunk.iter_mut().enumerate() {
+                        let ray_idx = start_idx + i;
+                        if ray_idx >= total_pixels {
+                            break;
+                        }
+                        let direction = rotation_camera_to_world * self.ray_directions[ray_idx];
+                        *depth = self.ray_cast(
+                            quad_position,
+                            &rotation_world_to_camera,
+                            &direction,
+                            maze,
+                        )?;
+                    }
                     Ok::<(), SimulationError>(())
                 })?;
         } else {
