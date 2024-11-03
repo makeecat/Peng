@@ -1278,6 +1278,7 @@ impl PlannerManager {
     }
 }
 /// Obstacle avoidance planner that uses a potential field approach to avoid obstacles
+///
 /// The planner calculates a repulsive force for each obstacle and an attractive force towards the goal
 /// The resulting force is then used to calculate the desired position and velocity
 /// # Example
