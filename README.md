@@ -18,7 +18,7 @@ Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator,
 ### Installation from Crates.io
 
 ```bash
-cargo install rerun-cli # ensure you installed rerun-cli>=0.18.2 by checking rerun --version
+cargo install rerun-cli # ensure you installed rerun-cli>=0.19.0 by checking rerun --version
 cargo install peng_quad
 peng_quad config/quad.yaml
 ```

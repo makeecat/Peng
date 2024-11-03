@@ -634,9 +634,10 @@ impl PIDController {
             + self.kpid_pos[2].component_mul(&self.integral_pos_error);
         let gravity_compensation = Vector3::new(0.0, 0.0, self.gravity);
         let total_acceleration = acceleration + gravity_compensation;
-        let thrust = self.mass * total_acceleration.norm();
-        let desired_orientation = if total_acceleration.norm() > 1e-6 {
-            let z_body = total_acceleration.normalize();
+        let total_acc_norm = total_acceleration.norm();
+        let thrust = self.mass * total_acc_norm;
+        let desired_orientation = if total_acc_norm > 1e-6 {
+            let z_body = total_acceleration / total_acc_norm;
             let yaw_rotation = UnitQuaternion::from_euler_angles(0.0, 0.0, desired_yaw);
             let x_body_horizontal = yaw_rotation * Vector3::new(1.0, 0.0, 0.0);
             let y_body = z_body.cross(&x_body_horizontal).normalize();
@@ -915,7 +916,10 @@ impl Planner for MinimumJerkLinePlanner {
         time: f32,
     ) -> (Vector3<f32>, Vector3<f32>, f32) {
         let t = ((time - self.start_time) / self.duration).clamp(0.0, 1.0);
-        let s = 10.0 * t.powi(3) - 15.0 * t.powi(4) + 6.0 * t.powi(5);
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let t4 = t3 * t;
+        let s = 10.0 * t2 - 15.0 * t3 + 6.0 * t4;
         let s_dot = (30.0 * t.powi(2) - 60.0 * t.powi(3) + 30.0 * t.powi(4)) / self.duration;
         let position = self.start_position + (self.end_position - self.start_position) * s;
         let velocity = (self.end_position - self.start_position) * s_dot;
@@ -1274,6 +1278,7 @@ impl PlannerManager {
     }
 }
 /// Obstacle avoidance planner that uses a potential field approach to avoid obstacles
+///
 /// The planner calculates a repulsive force for each obstacle and an attractive force towards the goal
 /// The resulting force is then used to calculate the desired position and velocity
 /// # Example
@@ -1975,6 +1980,8 @@ impl Obstacle {
 /// # Example
 /// ```
 /// use peng_quad::{Maze, Obstacle};
+/// use rand_chacha::ChaCha8Rng;
+/// use rand::SeedableRng;
 /// use nalgebra::Vector3;
 /// let maze = Maze {
 ///     lower_bounds: [0.0, 0.0, 0.0],
@@ -1982,6 +1989,7 @@ impl Obstacle {
 ///     obstacles: vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)],
 ///     obstacles_velocity_bounds: [0.0, 0.0, 0.0],
 ///     obstacles_radius_bounds: [0.0, 0.0],
+///     rng: ChaCha8Rng::from_entropy(),
 /// };
 /// ```
 pub struct Maze {
@@ -1995,6 +2003,8 @@ pub struct Maze {
     pub obstacles_velocity_bounds: [f32; 3],
     /// The bounds of the obstacles' radius
     pub obstacles_radius_bounds: [f32; 2],
+    /// Rng for generating random numbers
+    pub rng: ChaCha8Rng,
 }
 /// Implementation of the maze
 impl Maze {
@@ -2023,6 +2033,7 @@ impl Maze {
             obstacles: Vec::new(),
             obstacles_velocity_bounds,
             obstacles_radius_bounds,
+            rng: ChaCha8Rng::from_entropy(),
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -2037,22 +2048,21 @@ impl Maze {
     /// maze.generate_obstacles(5);
     /// ```
     pub fn generate_obstacles(&mut self, num_obstacles: usize) {
-        let mut rng = ChaCha8Rng::from_entropy();
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[0]..self.upper_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[1]..self.upper_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, self.lower_bounds[2]..self.upper_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[0]..self.upper_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[1]..self.upper_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[2]..self.upper_bounds[2]),
                 );
                 let v_bounds = self.obstacles_velocity_bounds;
                 let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut rng, -v_bounds[0]..v_bounds[0]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[1]..v_bounds[1]),
-                    rand::Rng::gen_range(&mut rng, -v_bounds[2]..v_bounds[2]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::gen_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut rng, r_bounds[0]..r_bounds[1]);
+                let radius = rand::Rng::gen_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
@@ -2088,8 +2098,14 @@ impl Maze {
 pub struct Camera {
     /// The resolution of the camera
     pub resolution: (usize, usize),
-    /// The field of view of the camera
-    pub fov: f32,
+    /// The vertical field of view of the camera
+    pub fov_vertical: f32,
+    /// The horizontal field of view of the camera
+    pub fov_horizontal: f32,
+    /// The vertical focal length of the camera
+    pub vertical_focal_length: f32,
+    /// The horizontal focal length of the camera
+    pub horizontal_focal_length: f32,
     /// The near clipping plane of the camera
     pub near: f32,
     /// The far clipping plane of the camera
@@ -2104,7 +2120,7 @@ impl Camera {
     /// Creates a new camera with the given resolution, field of view, near and far clipping planes
     /// # Arguments
     /// * `resolution` - The resolution of the camera
-    /// * `fov` - The field of view of the camera
+    /// * `fov_vertical` - The vertical field of view of the camera
     /// * `near` - The near clipping plane of the camera
     /// * `far` - The far clipping plane of the camera
     /// # Returns
@@ -2114,9 +2130,10 @@ impl Camera {
     /// use peng_quad::Camera;
     /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
     /// ```
-    pub fn new(resolution: (usize, usize), fov: f32, near: f32, far: f32) -> Self {
+    pub fn new(resolution: (usize, usize), fov_vertical: f32, near: f32, far: f32) -> Self {
         let (width, height) = resolution;
-        let (aspect_ratio, tan_half_fov) = (width as f32 / height as f32, (fov / 2.0).tan());
+        let (aspect_ratio, tan_half_fov) =
+            (width as f32 / height as f32, (fov_vertical / 2.0).tan());
         let mut ray_directions = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
@@ -2125,9 +2142,16 @@ impl Camera {
                 ray_directions.push(Vector3::new(1.0, x_ndc, y_ndc).normalize());
             }
         }
+        let fov_horizontal =
+            (width as f32 / height as f32 * (fov_vertical / 2.0).tan()).atan() * 2.0;
+        let horizontal_focal_length = (width as f32 / 2.0) / ((fov_horizontal / 2.0).tan());
+        let vertical_focal_length = (height as f32 / 2.0) / ((fov_vertical / 2.0).tan());
         Self {
             resolution,
-            fov,
+            fov_vertical,
+            fov_horizontal,
+            vertical_focal_length,
+            horizontal_focal_length,
             near,
             far,
             aspect_ratio,
@@ -2167,15 +2191,28 @@ impl Camera {
         let rotation_camera_to_world = quad_orientation.to_rotation_matrix().matrix()
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
+
+        const CHUNK_SIZE: usize = 64;
         if use_multi_threading {
             depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
             depth_buffer
-                .par_iter_mut()
+                .par_chunks_mut(CHUNK_SIZE)
                 .enumerate()
-                .try_for_each(|(i, depth)| {
-                    let direction = rotation_camera_to_world * self.ray_directions[i];
-                    *depth =
-                        self.ray_cast(quad_position, &rotation_world_to_camera, &direction, maze)?;
+                .try_for_each(|(chunk_idx, chunk)| {
+                    let start_idx = chunk_idx * CHUNK_SIZE;
+                    for (i, depth) in chunk.iter_mut().enumerate() {
+                        let ray_idx = start_idx + i;
+                        if ray_idx >= total_pixels {
+                            break;
+                        }
+                        let direction = rotation_camera_to_world * self.ray_directions[ray_idx];
+                        *depth = self.ray_cast(
+                            quad_position,
+                            &rotation_world_to_camera,
+                            &direction,
+                            maze,
+                        )?;
+                    }
                     Ok::<(), SimulationError>(())
                 })?;
         } else {
@@ -2536,8 +2573,7 @@ pub fn log_mesh(
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `depth_image` - The depth image data
-/// * `width` - The width of the depth image
-/// * `height` - The height of the depth image
+/// * `resolution` - The width and height of the depth image
 /// * `min_depth` - The minimum depth value
 /// * `max_depth` - The maximum depth value
 /// # Errors
@@ -2547,16 +2583,16 @@ pub fn log_mesh(
 /// use peng_quad::log_depth_image;
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![0.0; 640 * 480];
-/// log_depth_image(&rec, &depth_image, 640, 480, 0.0, 1.0).unwrap();
+/// log_depth_image(&rec, &depth_image, (640usize, 480usize), 0.0, 1.0).unwrap();
 /// ```
 pub fn log_depth_image(
     rec: &rerun::RecordingStream,
     depth_image: &[f32],
-    width: usize,
-    height: usize,
+    resolution: (usize, usize),
     min_depth: f32,
     max_depth: f32,
 ) -> Result<(), SimulationError> {
+    let (width, height) = resolution;
     let mut image = rerun::external::ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
     image
@@ -2580,6 +2616,71 @@ pub fn log_depth_image(
     let rerun_image = rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image)
         .map_err(|e| SimulationError::OtherError(format!("Failed to create rerun image: {}", e)))?;
     rec.log("world/quad/cam/depth", &rerun_image)?;
+    Ok(())
+}
+/// creates pinhole camera
+/// # Arguments
+/// * `rec` - The rerun::RecordingStream instance
+/// * `cam` - The camera object
+/// * `cam_position` - The position vector of the camera (aligns with the quad)
+/// * `cam_orientation` - The orientation quaternion of quad
+/// * `cam_transform` - The transform matrix between quad and camera alignment
+/// * `depth_image` - The depth image data
+/// # Errors
+/// * If the data cannot be logged to the recording stream
+/// # Example
+/// ```no_run
+/// use peng_quad::{pinhole_depth, Camera};
+/// use nalgebra::{Vector3, UnitQuaternion};
+/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let depth_image = vec![ 0.0f32 ; 640 * 480];
+/// let cam_position = Vector3::new(0.0,0.0,0.0);
+/// let cam_orientation = UnitQuaternion::identity();
+/// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
+/// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
+/// pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+
+pub fn pinhole_depth(
+    rec: &rerun::RecordingStream,
+    cam: &Camera,
+    cam_position: Vector3<f32>,
+    cam_orientation: UnitQuaternion<f32>,
+    cam_transform: [f32; 9],
+    depth_image: &[f32],
+) -> Result<(), SimulationError> {
+    let (width, height) = cam.resolution;
+    let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
+        (cam.horizontal_focal_length, cam.vertical_focal_length),
+        (width as f32, height as f32),
+    )
+    .with_camera_xyz(rerun::components::ViewCoordinates::RDF)
+    .with_resolution((width as f32, height as f32))
+    .with_principal_point((width as f32 / 2.0, height as f32 / 2.0));
+    let rotated_camera_orientation = UnitQuaternion::from_rotation_matrix(
+        &(cam_orientation.to_rotation_matrix()
+            * Rotation3::from_matrix_unchecked(Matrix3::from_row_slice(&cam_transform))),
+    );
+    let cam_transform = rerun::Transform3D::from_translation_rotation(
+        rerun::Vec3D::new(cam_position.x, cam_position.y, cam_position.z),
+        rerun::Quaternion::from_xyzw([
+            rotated_camera_orientation.i,
+            rotated_camera_orientation.j,
+            rotated_camera_orientation.k,
+            rotated_camera_orientation.w,
+        ]),
+    );
+    rec.log("world/quad/cam", &cam_transform)?;
+    rec.log("world/quad/cam", &pinhole_camera)?;
+    let depth_image_rerun =
+        rerun::external::ndarray::Array::from_shape_vec((height, width), depth_image.to_vec())
+            .unwrap();
+    rec.log(
+        "world/quad/cam/rerun_depth",
+        &rerun::DepthImage::try_from(depth_image_rerun)
+            .unwrap()
+            .with_meter(1.0),
+    )?;
+
     Ok(())
 }
 /// turbo color map function
