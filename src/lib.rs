@@ -48,6 +48,29 @@ pub enum SimulationError {
     #[error("Other error: {0}")]
     OtherError(String),
 }
+
+pub trait Quadrotor {
+    fn control(
+        &mut self,
+        step_number: usize,
+        config: &config::Config,
+        thrust: f32,
+        torque: &Vector3<f32>,
+    );
+
+    fn observe(
+        &self,
+    ) -> Result<
+        (
+            Vector3<f32>,
+            Vector3<f32>,
+            UnitQuaternion<f32>,
+            Vector3<f32>,
+        ),
+        SimulationError,
+    >;
+}
+
 /// Represents a quadrotor with its physical properties and state
 /// # Example
 /// ```
@@ -83,6 +106,56 @@ pub struct SimulatedQuadrotor {
     /// Previous Torque
     pub previous_torque: Vector3<f32>,
 }
+
+impl Quadrotor for SimulatedQuadrotor {
+    fn control(
+        &mut self,
+        step_number: usize,
+        config: &config::Config,
+        thrust: f32,
+        torque: &Vector3<f32>,
+    ) {
+        if step_number
+            % (config.simulation.simulation_frequency / config.simulation.control_frequency)
+            == 0
+        {
+            if config.use_rk4_for_dynamics_control {
+                self.update_dynamics_with_controls_rk4(thrust, &torque);
+            } else {
+                self.update_dynamics_with_controls_euler(thrust, &torque);
+            }
+            self.previous_thrust = thrust;
+            self.previous_torque = *torque;
+        } else {
+            let previous_thrust = self.previous_thrust;
+            let previous_torque = self.previous_torque;
+            if config.use_rk4_for_dynamics_update {
+                self.update_dynamics_with_controls_rk4(previous_thrust, &previous_torque);
+            } else {
+                self.update_dynamics_with_controls_euler(previous_thrust, &previous_torque);
+            }
+        }
+    }
+    fn observe(
+        &self,
+    ) -> Result<
+        (
+            Vector3<f32>,
+            Vector3<f32>,
+            UnitQuaternion<f32>,
+            Vector3<f32>,
+        ),
+        SimulationError,
+    > {
+        return Ok((
+            self.position,
+            self.velocity,
+            self.orientation,
+            self.angular_velocity,
+        ));
+    }
+}
+
 /// Implementation of the Quadrotor struct
 impl SimulatedQuadrotor {
     /// Creates a new Quadrotor with default parameters
@@ -133,35 +206,6 @@ impl SimulatedQuadrotor {
             previous_thrust: 0.0,
             previous_torque: Vector3::zeros(),
         })
-    }
-
-    pub fn control(
-        &mut self,
-        step_number: usize,
-        config: &config::Config,
-        thrust: f32,
-        torque: &Vector3<f32>,
-    ) {
-        if step_number
-            % (config.simulation.simulation_frequency / config.simulation.control_frequency)
-            == 0
-        {
-            if config.use_rk4_for_dynamics_control {
-                self.update_dynamics_with_controls_rk4(thrust, &torque);
-            } else {
-                self.update_dynamics_with_controls_euler(thrust, &torque);
-            }
-            self.previous_thrust = thrust;
-            self.previous_torque = *torque;
-        } else {
-            let previous_thrust = self.previous_thrust;
-            let previous_torque = self.previous_torque;
-            if config.use_rk4_for_dynamics_update {
-                self.update_dynamics_with_controls_rk4(previous_thrust, &previous_torque);
-            } else {
-                self.update_dynamics_with_controls_euler(previous_thrust, &previous_torque);
-            }
-        }
     }
 
     /// Updates the quadrotor's dynamics with control inputs
