@@ -86,7 +86,7 @@ pub struct PIDControllerConfig {
     pub att_max_int: [f32; 3],
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Clone, Copy, serde::Deserialize)]
 /// Configuration for PID gains
 pub struct PIDGains {
     /// Proportional gains

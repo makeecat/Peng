@@ -23,6 +23,7 @@ use nalgebra::{Matrix3, Quaternion, Rotation3, SMatrix, UnitQuaternion, Vector3}
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
+
 #[derive(thiserror::Error, Debug)]
 /// Represents errors that can occur during simulation
 /// # Example
@@ -77,6 +78,10 @@ pub struct Quadrotor {
     pub inertia_matrix: Matrix3<f32>,
     /// Inverse of the inertia matrix
     pub inertia_matrix_inv: Matrix3<f32>,
+    /// Previous Thrust
+    pub previous_thrust: f32,
+    /// Previous Torque
+    pub previous_torque: Vector3<f32>,
 }
 /// Implementation of the Quadrotor struct
 impl Quadrotor {
@@ -125,8 +130,40 @@ impl Quadrotor {
             drag_coefficient,
             inertia_matrix,
             inertia_matrix_inv,
+            previous_thrust: 0.0,
+            previous_torque: Vector3::zeros(),
         })
     }
+
+    pub fn control(
+        &mut self,
+        step_number: usize,
+        config: &config::Config,
+        thrust: f32,
+        torque: &Vector3<f32>,
+    ) {
+        if step_number
+            % (config.simulation.simulation_frequency / config.simulation.control_frequency)
+            == 0
+        {
+            if config.use_rk4_for_dynamics_control {
+                self.update_dynamics_with_controls_rk4(thrust, &torque);
+            } else {
+                self.update_dynamics_with_controls_euler(thrust, &torque);
+            }
+            self.previous_thrust = thrust;
+            self.previous_torque = *torque;
+        } else {
+            let previous_thrust = self.previous_thrust;
+            let previous_torque = self.previous_torque;
+            if config.use_rk4_for_dynamics_update {
+                self.update_dynamics_with_controls_rk4(previous_thrust, &previous_torque);
+            } else {
+                self.update_dynamics_with_controls_euler(previous_thrust, &previous_torque);
+            }
+        }
+    }
+
     /// Updates the quadrotor's dynamics with control inputs
     /// # Arguments
     /// * `control_thrust` - The total thrust force applied to the quadrotor

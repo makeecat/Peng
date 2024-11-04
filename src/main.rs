@@ -59,8 +59,6 @@ fn main() -> Result<(), SimulationError> {
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
-    let mut previous_thrust = 0.0;
-    let mut previous_torque = Vector3::zeros();
     let planner_config: Vec<PlannerStepConfig> = config
         .planner_schedule
         .iter()
@@ -126,19 +124,7 @@ fn main() -> Result<(), SimulationError> {
             &quad.angular_velocity,
             quad.time_step,
         );
-        if i % (config.simulation.simulation_frequency / config.simulation.control_frequency) == 0 {
-            if config.use_rk4_for_dynamics_control {
-                quad.update_dynamics_with_controls_rk4(thrust, &torque);
-            } else {
-                quad.update_dynamics_with_controls_euler(thrust, &torque);
-            }
-            previous_thrust = thrust;
-            previous_torque = torque;
-        } else if config.use_rk4_for_dynamics_update {
-            quad.update_dynamics_with_controls_rk4(previous_thrust, &previous_torque);
-        } else {
-            quad.update_dynamics_with_controls_euler(previous_thrust, &previous_torque);
-        }
+        quad.control(i, &config, thrust, &torque);
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
         let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
