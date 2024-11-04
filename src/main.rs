@@ -1,20 +1,28 @@
 use nalgebra::Vector3;
 use peng_quad::*;
+use rerun::external::log;
 /// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
-    env_logger::builder()
-        .parse_env(env_logger::Env::default().default_filter_or("info"))
-        .init();
     let mut config_str = "config/quad.yaml";
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
-        log::warn!("Usage: {} <config.yaml>.", args[0]);
-        log::warn!("Loading default configuration: config/quad.yaml");
+        println!(
+            "[\x1b[33mWARN\x1b[0m peng_quad] Usage: {} <config.yaml>.",
+            args[0]
+        );
+        println!("[\x1b[33mWARN\x1b[0m peng_quad] Loading default configuration: config/quad.yaml");
     } else {
-        log::info!("Loading configuration: {}", args[1]);
+        println!(
+            "[\x1b[32mINFO\x1b[0m peng_quad] Loading configuration: {}",
+            args[1]
+        );
         config_str = &args[1];
     }
     let config = config::Config::from_yaml(config_str).expect("Failed to load configuration.");
+    println!(
+        "[\x1b[32mINFO\x1b[0m peng_quad]Use rerun.io: {}",
+        config.use_rerun
+    );
     let mut quad = Quadrotor::new(
         1.0 / config.simulation.simulation_frequency as f32,
         config.quadrotor.mass,
@@ -65,17 +73,23 @@ fn main() -> Result<(), SimulationError> {
             params: step.params.clone(),
         })
         .collect();
-    log::info!("Use rerun.io: {}", config.use_rerun);
     let rec = if config.use_rerun {
-        rerun::spawn(&rerun::SpawnOptions::default())?;
-        Some(rerun::RecordingStreamBuilder::new("Peng").connect()?)
+        let _rec = rerun::RecordingStreamBuilder::new("Peng").spawn()?;
+        rerun::Logger::new(_rec.clone())
+            .with_path_prefix("logs")
+            .with_filter(rerun::default_log_filter())
+            .init()
+            .unwrap();
+        Some(_rec)
     } else {
+        env_logger::builder()
+            .parse_env(env_logger::Env::default().default_filter_or("info"))
+            .init();
         None
     };
+    log::info!("Use rerun.io: {}", config.use_rerun);
     if let Some(rec) = &rec {
         rec.log_file_from_path(config.rerun_blueprint, None, false)?;
-    }
-    if let Some(rec) = &rec {
         rec.set_time_seconds("timestamp", 0);
         log_mesh(rec, config.mesh.division, config.mesh.spacing)?;
         log_maze_tube(rec, &maze)?;
@@ -181,5 +195,6 @@ fn main() -> Result<(), SimulationError> {
             break;
         }
     }
+    log::logger().flush();
     Ok(())
 }
