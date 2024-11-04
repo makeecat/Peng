@@ -22,6 +22,8 @@ pub struct Config {
     pub mesh: MeshConfig,
     /// Planner schedule configuration
     pub planner_schedule: Vec<PlannerStep>,
+    /// Rerun blueprint path
+    pub rerun_blueprint: String,
     /// Use rerun.io for recording
     pub use_rerun: bool,
     /// Render depth

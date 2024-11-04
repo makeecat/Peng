@@ -4,6 +4,8 @@ use_multithreading_depth_rendering: true # Enable multithreading for depth rende
 use_rk4_for_dynamics_update: false # Enable Runge-Kutta 4th order integration for dynamics, otherwise Euler integration is used
 use_rk4_for_dynamics_control: false # Enable Runge-Kutta 4th order integration for dynamics, otherwise Euler integration is used
 
+rerun_blueprint: "config/peng_default_blueprint.rbl"
+
 simulation:
   control_frequency: 200 # Frequency of control loop execution (Hz)
   simulation_frequency: 1000 # Frequency of physics simulation updates (Hz)

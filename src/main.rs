@@ -14,7 +14,7 @@ fn main() -> Result<(), SimulationError> {
         log::info!("Loading configuration: {}", args[1]);
         config_str = &args[1];
     }
-    let config = config::Config::from_yaml(config_str).expect("Failed to load configuration");
+    let config = config::Config::from_yaml(config_str).expect("Failed to load configuration.");
     let mut quad = Quadrotor::new(
         1.0 / config.simulation.simulation_frequency as f32,
         config.quadrotor.mass,
@@ -72,6 +72,9 @@ fn main() -> Result<(), SimulationError> {
     } else {
         None
     };
+    if let Some(rec) = &rec {
+        rec.log_file_from_path(config.rerun_blueprint, None, false)?;
+    }
     if let Some(rec) = &rec {
         rec.set_time_seconds("timestamp", 0);
         log_mesh(rec, config.mesh.division, config.mesh.spacing)?;
