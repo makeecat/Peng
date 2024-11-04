@@ -1,6 +1,5 @@
 use nalgebra::Vector3;
 use peng_quad::*;
-use rerun::external::log;
 /// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
     let mut config_str = "config/quad.yaml";

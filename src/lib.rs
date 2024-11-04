@@ -22,7 +22,6 @@ pub mod config;
 use nalgebra::{Matrix3, Quaternion, Rotation3, SMatrix, UnitQuaternion, Vector3};
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, Normal};
-use rerun::external::log;
 use std::f32::consts::PI;
 #[derive(thiserror::Error, Debug)]
 /// Represents errors that can occur during simulation
