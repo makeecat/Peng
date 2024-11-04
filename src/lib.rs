@@ -57,7 +57,7 @@ pub enum SimulationError {
 /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix);
 /// ```
-pub struct Quadrotor {
+pub struct SimulatedQuadrotor {
     /// Current position of the quadrotor in 3D space
     pub position: Vector3<f32>,
     /// Current velocity of the quadrotor
@@ -84,7 +84,7 @@ pub struct Quadrotor {
     pub previous_torque: Vector3<f32>,
 }
 /// Implementation of the Quadrotor struct
-impl Quadrotor {
+impl SimulatedQuadrotor {
     /// Creates a new Quadrotor with default parameters
     /// # Arguments
     /// * `time_step` - The simulation time step in seconds
@@ -1760,7 +1760,7 @@ pub fn update_planner(
     step: usize,
     time: f32,
     simulation_frequency: usize,
-    quad: &Quadrotor,
+    quad: &SimulatedQuadrotor,
     obstacles: &[Obstacle],
     planner_config: &[PlannerStepConfig],
 ) -> Result<(), SimulationError> {
@@ -1810,7 +1810,7 @@ pub fn update_planner(
 /// ```
 pub fn create_planner(
     step: &PlannerStepConfig,
-    quad: &Quadrotor,
+    quad: &SimulatedQuadrotor,
     time: f32,
     obstacles: &[Obstacle],
 ) -> Result<PlannerType, SimulationError> {
@@ -2363,7 +2363,7 @@ impl Camera {
 /// ```
 pub fn log_data(
     rec: &rerun::RecordingStream,
-    quad: &Quadrotor,
+    quad: &SimulatedQuadrotor,
     desired_position: &Vector3<f32>,
     desired_velocity: &Vector3<f32>,
     measured_accel: &Vector3<f32>,

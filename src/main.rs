@@ -20,7 +20,7 @@ fn main() -> Result<(), SimulationError> {
         config_str = &args[1];
     }
     let config = config::Config::from_yaml(config_str).expect("Failed to load configuration");
-    let mut quad = Quadrotor::new(
+    let mut quad = SimulatedQuadrotor::new(
         1.0 / config.simulation.simulation_frequency as f32,
         config.quadrotor.mass,
         config.quadrotor.gravity,
