@@ -174,7 +174,7 @@ fn main() -> Result<(), SimulationError> {
                         camera.near,
                         camera.far,
                     )?;
-                    pinhole_depth(
+                    log_pinhole_depth(
                         rec,
                         &camera,
                         quad.position,
