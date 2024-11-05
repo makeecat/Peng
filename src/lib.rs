@@ -61,6 +61,8 @@ pub struct Quadrotor {
     pub position: Vector3<f32>,
     /// Current velocity of the quadrotor
     pub velocity: Vector3<f32>,
+    /// Current acceleration of the quadrotor
+    pub acceleration: Vector3<f32>,
     /// Current orientation of the quadrotor
     pub orientation: UnitQuaternion<f32>,
     /// Current angular velocity of the quadrotor
@@ -117,6 +119,7 @@ impl Quadrotor {
         Ok(Self {
             position: Vector3::zeros(),
             velocity: Vector3::zeros(),
+            acceleration: Vector3::zeros(),
             orientation: UnitQuaternion::identity(),
             angular_velocity: Vector3::zeros(),
             mass,
@@ -151,8 +154,8 @@ impl Quadrotor {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * self.velocity.norm() * self.velocity;
         let thrust_world = self.orientation * Vector3::new(0.0, 0.0, control_thrust);
-        let acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
-        self.velocity += acceleration * self.time_step;
+        self.acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
+        self.velocity += self.acceleration * self.time_step;
         self.position += self.velocity * self.time_step;
         let inertia_angular_velocity = self.inertia_matrix * self.angular_velocity;
         let gyroscopic_torque = self.angular_velocity.cross(&inertia_angular_velocity);
@@ -271,7 +274,7 @@ impl Quadrotor {
     /// use nalgebra::UnitQuaternion;
     /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
     /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
-    /// let quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+    /// let mut quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
     /// let state = [
     ///   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     /// ];
@@ -280,7 +283,7 @@ impl Quadrotor {
     /// let derivative = quadrotor.state_derivative(&state, control_thrust, &control_torque);
     /// ```
     pub fn state_derivative(
-        &self,
+        &mut self,
         state: &[f32],
         control_thrust: f32,
         control_torque: &Vector3<f32>,
@@ -298,7 +301,7 @@ impl Quadrotor {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * velocity.norm() * velocity;
         let thrust_world = orientation * Vector3::new(0.0, 0.0, control_thrust);
-        let acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
+        self.acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
 
         let inertia_angular_velocity = self.inertia_matrix * angular_velocity;
         let gyroscopic_torque = angular_velocity.cross(&inertia_angular_velocity);
@@ -306,7 +309,7 @@ impl Quadrotor {
 
         let mut derivative = [0.0; 13];
         derivative[0..3].copy_from_slice(velocity.as_slice());
-        derivative[3..6].copy_from_slice(acceleration.as_slice());
+        derivative[3..6].copy_from_slice(self.acceleration.as_slice());
         derivative[6..10].copy_from_slice(q_dot.coords.as_slice());
         derivative[10..13].copy_from_slice(angular_acceleration.as_slice());
         derivative
@@ -327,10 +330,7 @@ impl Quadrotor {
     /// let (true_acceleration, true_angular_velocity) = quadrotor.read_imu().unwrap();
     /// ```
     pub fn read_imu(&self) -> Result<(Vector3<f32>, Vector3<f32>), SimulationError> {
-        let gravity_world = Vector3::new(0.0, 0.0, self.gravity);
-        let true_acceleration =
-            self.orientation.inverse() * (self.velocity / self.time_step - gravity_world);
-        Ok((true_acceleration, self.angular_velocity))
+        Ok((self.acceleration, self.angular_velocity))
     }
 }
 /// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
