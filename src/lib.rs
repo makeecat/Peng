@@ -283,7 +283,7 @@ impl Quadrotor {
     /// let derivative = quadrotor.state_derivative(&state, control_thrust, &control_torque);
     /// ```
     pub fn state_derivative(
-        &self,
+        &mut self,
         state: &[f32],
         control_thrust: f32,
         control_torque: &Vector3<f32>,
@@ -301,7 +301,7 @@ impl Quadrotor {
         let gravity_force = Vector3::new(0.0, 0.0, -self.mass * self.gravity);
         let drag_force = -self.drag_coefficient * velocity.norm() * velocity;
         let thrust_world = orientation * Vector3::new(0.0, 0.0, control_thrust);
-        let acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
+        self.acceleration = (thrust_world + gravity_force + drag_force) / self.mass;
 
         let inertia_angular_velocity = self.inertia_matrix * angular_velocity;
         let gyroscopic_torque = angular_velocity.cross(&inertia_angular_velocity);
@@ -309,7 +309,7 @@ impl Quadrotor {
 
         let mut derivative = [0.0; 13];
         derivative[0..3].copy_from_slice(velocity.as_slice());
-        derivative[3..6].copy_from_slice(acceleration.as_slice());
+        derivative[3..6].copy_from_slice(self.acceleration.as_slice());
         derivative[6..10].copy_from_slice(q_dot.coords.as_slice());
         derivative[10..13].copy_from_slice(angular_acceleration.as_slice());
         derivative
