@@ -2114,6 +2114,8 @@ pub struct Camera {
     pub aspect_ratio: f32,
     /// The ray directions of each pixel in the camera
     pub ray_directions: Vec<Vector3<f32>>,
+    /// Depth buffer
+    pub depth_buffer: Vec<f32>,
 }
 /// Implementation of the camera
 impl Camera {
@@ -2146,6 +2148,8 @@ impl Camera {
             (width as f32 / height as f32 * (fov_vertical / 2.0).tan()).atan() * 2.0;
         let horizontal_focal_length = (width as f32 / 2.0) / ((fov_horizontal / 2.0).tan());
         let vertical_focal_length = (height as f32 / 2.0) / ((fov_vertical / 2.0).tan());
+        let depth_buffer = vec![0.0; width * height];
+
         Self {
             resolution,
             fov_vertical,
@@ -2156,8 +2160,10 @@ impl Camera {
             far,
             aspect_ratio,
             ray_directions,
+            depth_buffer,
         }
     }
+
     /// Renders the depth of the scene from the perspective of the quadrotor
     /// # Arguments
     /// * `quad_position` - The position of the quadrotor
@@ -2170,20 +2176,18 @@ impl Camera {
     /// ```
     /// use peng_quad::{Camera, Maze};
     /// use nalgebra::{Vector3, UnitQuaternion};
-    /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
+    /// let mut camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
     /// let quad_position = Vector3::new(0.0, 0.0, 0.0);
     /// let quad_orientation = UnitQuaternion::identity();
     /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
-    /// let mut depth_buffer = vec![0.0; 800 * 600];
     /// let use_multithreading = true;
-    /// camera.render_depth(&quad_position, &quad_orientation, &maze, &mut depth_buffer, use_multithreading);
+    /// camera.render_depth(&quad_position, &quad_orientation, &maze, use_multithreading);
     /// ```
     pub fn render_depth(
-        &self,
+        &mut self,
         quad_position: &Vector3<f32>,
         quad_orientation: &UnitQuaternion<f32>,
         maze: &Maze,
-        depth_buffer: &mut Vec<f32>,
         use_multi_threading: bool,
     ) -> Result<(), SimulationError> {
         let (width, height) = self.resolution;
@@ -2192,10 +2196,15 @@ impl Camera {
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
 
+        // Pre-compute rotated ray directions
+        let rotated_rays: Vec<Vector3<f32>> = self
+            .ray_directions
+            .iter()
+            .map(|&dir| rotation_camera_to_world * dir)
+            .collect();
         const CHUNK_SIZE: usize = 64;
         if use_multi_threading {
-            depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
-            depth_buffer
+            self.depth_buffer
                 .par_chunks_mut(CHUNK_SIZE)
                 .enumerate()
                 .try_for_each(|(chunk_idx, chunk)| {
@@ -2205,100 +2214,106 @@ impl Camera {
                         if ray_idx >= total_pixels {
                             break;
                         }
-                        let direction = rotation_camera_to_world * self.ray_directions[ray_idx];
-                        *depth = self.ray_cast(
+                        *depth = ray_cast(
                             quad_position,
                             &rotation_world_to_camera,
-                            &direction,
+                            &rotated_rays[ray_idx],
                             maze,
+                            self.near,
+                            self.far,
                         )?;
                     }
                     Ok::<(), SimulationError>(())
                 })?;
         } else {
-            depth_buffer.clear();
-            depth_buffer.reserve((total_pixels - depth_buffer.capacity()).max(0));
             for i in 0..total_pixels {
-                depth_buffer.push(self.ray_cast(
+                self.depth_buffer[i] = ray_cast(
                     quad_position,
                     &rotation_world_to_camera,
                     &(rotation_camera_to_world * self.ray_directions[i]),
                     maze,
-                )?);
+                    self.near,
+                    self.far,
+                )?;
             }
         }
         Ok(())
     }
-    /// Casts a ray from the camera origin in the given direction
-    /// # Arguments
-    /// * `origin` - The origin of the ray
-    /// * `rotation_world_to_camera` - The rotation matrix from world to camera coordinates
-    /// * `direction` - The direction of the ray
-    /// * `maze` - The maze in the scene
-    /// # Returns
-    /// * The distance to the closest obstacle hit by the ray
-    /// # Errors
-    /// * If the ray does not hit any obstacles
-    /// # Example
-    /// ```
-    /// use peng_quad::{Camera, Maze};
-    /// use nalgebra::{Vector3, Matrix3};
-    /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
-    /// let origin = Vector3::new(0.0, 0.0, 0.0);
-    /// let rotation_world_to_camera = Matrix3::identity();
-    /// let direction = Vector3::new(1.0, 0.0, 0.0);
-    /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
-    /// let distance = camera.ray_cast(&origin, &rotation_world_to_camera, &direction, &maze);
-    /// ```
-    pub fn ray_cast(
-        &self,
-        origin: &Vector3<f32>,
-        rotation_world_to_camera: &Matrix3<f32>,
-        direction: &Vector3<f32>,
-        maze: &Maze,
-    ) -> Result<f32, SimulationError> {
-        let mut closest_hit = self.far;
-        // Inline tube intersection
-        for axis in 0..3 {
-            if direction[axis].abs() > f32::EPSILON {
-                for &bound in &[maze.lower_bounds[axis], maze.upper_bounds[axis]] {
-                    let t = (bound - origin[axis]) / direction[axis];
-                    if t > self.near && t < closest_hit {
-                        let intersection_point = origin + direction * t;
-                        if (0..3).all(|i| {
-                            i == axis
-                                || (intersection_point[i] >= maze.lower_bounds[i]
-                                    && intersection_point[i] <= maze.upper_bounds[i])
-                        }) {
-                            closest_hit = t;
-                        }
+}
+
+/// Casts a ray from the camera origin in the given direction
+/// # Arguments
+/// * `origin` - The origin of the ray
+/// * `rotation_world_to_camera` - The rotation matrix from world to camera coordinates
+/// * `direction` - The direction of the ray
+/// * `maze` - The maze in the scene
+/// * `near` - The minimum distance to consider
+/// * `far` - The maximum distance to consider
+/// # Returns
+/// * The distance to the closest obstacle hit by the ray
+/// # Errors
+/// * If the ray does not hit any obstacles
+/// # Example
+/// ```
+/// use peng_quad::{ray_cast, Maze};
+/// use nalgebra::{Vector3, Matrix3};
+/// let origin = Vector3::new(0.0, 0.0, 0.0);
+/// let rotation_world_to_camera = Matrix3::identity();
+/// let direction = Vector3::new(0.0, 0.0, 1.0);
+/// let maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
+/// let near = 0.1;
+/// let far = 100.0;
+/// let distance = ray_cast(&origin, &rotation_world_to_camera, &direction, &maze, near, far);
+/// ```
+pub fn ray_cast(
+    origin: &Vector3<f32>,
+    rotation_world_to_camera: &Matrix3<f32>,
+    direction: &Vector3<f32>,
+    maze: &Maze,
+    near: f32,
+    far: f32,
+) -> Result<f32, SimulationError> {
+    let mut closest_hit = far;
+    // Inline tube intersection
+    for axis in 0..3 {
+        if direction[axis].abs() > f32::EPSILON {
+            for &bound in &[maze.lower_bounds[axis], maze.upper_bounds[axis]] {
+                let t = (bound - origin[axis]) / direction[axis];
+                if t > near && t < closest_hit {
+                    let intersection_point = origin + direction * t;
+                    if (0..3).all(|i| {
+                        i == axis
+                            || (intersection_point[i] >= maze.lower_bounds[i]
+                                && intersection_point[i] <= maze.upper_bounds[i])
+                    }) {
+                        closest_hit = t;
                     }
                 }
             }
         }
-        // Early exit if we've hit a wall closer than any possible obstacle
-        if closest_hit <= self.near {
-            return Ok(f32::INFINITY);
-        }
-        // Inline sphere intersection
-        for obstacle in &maze.obstacles {
-            let oc = origin - obstacle.position;
-            let b = oc.dot(direction);
-            let c = oc.dot(&oc) - obstacle.radius * obstacle.radius;
-            let discriminant = b * b - c;
-            if discriminant >= 0.0 {
-                // let t = -b - discriminant.sqrt();
-                let t = -b - fast_sqrt(discriminant);
-                if t > self.near && t < closest_hit {
-                    closest_hit = t;
-                }
+    }
+    // Early exit if we've hit a wall closer than any possible obstacle
+    if closest_hit <= near {
+        return Ok(f32::INFINITY);
+    }
+    // Inline sphere intersection
+    for obstacle in &maze.obstacles {
+        let oc = origin - obstacle.position;
+        let b = oc.dot(direction);
+        let c = oc.dot(&oc) - obstacle.radius * obstacle.radius;
+        let discriminant = b * b - c;
+        if discriminant >= 0.0 {
+            // let t = -b - discriminant.sqrt();
+            let t = -b - fast_sqrt(discriminant);
+            if t > near && t < closest_hit {
+                closest_hit = t;
             }
         }
-        if closest_hit < self.far {
-            Ok((rotation_world_to_camera * direction * closest_hit).x)
-        } else {
-            Ok(f32::INFINITY)
-        }
+    }
+    if closest_hit < far {
+        Ok((rotation_world_to_camera * direction * closest_hit).x)
+    } else {
+        Ok(f32::INFINITY)
     }
 }
 /// Logs simulation data to the rerun recording stream

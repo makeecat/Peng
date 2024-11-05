@@ -52,7 +52,7 @@ fn main() -> Result<(), SimulationError> {
         config.maze.obstacles_velocity_bounds,
         config.maze.obstacles_radius_bounds,
     );
-    let camera = Camera::new(
+    let mut camera = Camera::new(
         config.camera.resolution,
         config.camera.fov_vertical.to_radians(),
         config.camera.near,
@@ -60,7 +60,6 @@ fn main() -> Result<(), SimulationError> {
     );
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
-    let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
     let planner_config: Vec<PlannerStepConfig> = config
@@ -151,7 +150,6 @@ fn main() -> Result<(), SimulationError> {
                     &quad.position,
                     &quad.orientation,
                     &maze,
-                    &mut depth_buffer,
                     config.use_multithreading_depth_rendering,
                 )?;
             }
@@ -171,7 +169,7 @@ fn main() -> Result<(), SimulationError> {
                 if config.render_depth {
                     log_depth_image(
                         rec,
-                        &depth_buffer,
+                        &camera.depth_buffer,
                         camera.resolution,
                         camera.near,
                         camera.far,
@@ -182,7 +180,7 @@ fn main() -> Result<(), SimulationError> {
                         quad.position,
                         quad.orientation,
                         config.camera.rotation_transform,
-                        &depth_buffer,
+                        &camera.depth_buffer,
                     )?;
                 }
                 log_maze_obstacles(rec, &maze)?;
