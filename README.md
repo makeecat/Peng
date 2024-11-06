@@ -11,7 +11,7 @@
 ## What is Peng
 
 Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
-![demo](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng_demo.gif)
+[![rerun demo](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng_demo.gif)](https://rerun.io/viewer?url=https%3A%2F%2Fyangrobotics.com%2Ffiles%2Fpeng_v0.5.3_demo.rrd)
 
 ## Getting Started
 
@@ -106,6 +106,7 @@ Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
 
 - [Peng #1: Minimal quadrotor pipeline in Rust](https://yangrobotics.com/peng-1-minimal-quadrotor-pipeline-in-rust)
 - [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](https://yangrobotics.com/peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
+- [Peng #3: Optimization of Depth Rendering and RK4-based Dynamics Update of A Quadrotor Autonomy Pipeline in Rust](https://yangrobotics.com/peng-3-optimization-of-depth-rendering-and-rk4-based-dynamics-update-of-a-quadrotor-autonomy-pipeline)
 
 ## Citation
 
