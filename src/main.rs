@@ -167,7 +167,7 @@ fn main() -> Result<(), SimulationError> {
                     &measured_gyro,
                 )?;
                 if config.render_depth {
-                    log_depth_image(rec, &camera)?;
+                    log_depth_image(rec, &camera, config.use_multithreading_depth_rendering)?;
                     log_pinhole_depth(
                         rec,
                         &camera,
