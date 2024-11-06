@@ -52,7 +52,7 @@ fn main() -> Result<(), SimulationError> {
         config.maze.obstacles_velocity_bounds,
         config.maze.obstacles_radius_bounds,
     );
-    let camera = Camera::new(
+    let mut camera = Camera::new(
         config.camera.resolution,
         config.camera.fov_vertical.to_radians(),
         config.camera.near,
@@ -60,7 +60,6 @@ fn main() -> Result<(), SimulationError> {
     );
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
-    let mut depth_buffer: Vec<f32> = vec![0.0; camera.resolution.0 * camera.resolution.1];
     let mut previous_thrust = 0.0;
     let mut previous_torque = Vector3::zeros();
     let planner_config: Vec<PlannerStepConfig> = config
@@ -144,14 +143,13 @@ fn main() -> Result<(), SimulationError> {
         }
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
-        let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
+        let (measured_accel, measured_gyro) = imu.read(true_accel, true_gyro)?;
         if i % (config.simulation.simulation_frequency / config.simulation.log_frequency) == 0 {
             if config.render_depth {
                 camera.render_depth(
                     &quad.position,
                     &quad.orientation,
                     &maze,
-                    &mut depth_buffer,
                     config.use_multithreading_depth_rendering,
                 )?;
             }
@@ -165,24 +163,17 @@ fn main() -> Result<(), SimulationError> {
                     &quad,
                     &desired_position,
                     &desired_velocity,
-                    &_measured_accel,
-                    &_measured_gyro,
+                    &measured_accel,
+                    &measured_gyro,
                 )?;
                 if config.render_depth {
-                    log_depth_image(
-                        rec,
-                        &depth_buffer,
-                        camera.resolution,
-                        camera.near,
-                        camera.far,
-                    )?;
-                    pinhole_depth(
+                    log_depth_image(rec, &camera)?;
+                    log_pinhole_depth(
                         rec,
                         &camera,
                         quad.position,
                         quad.orientation,
                         config.camera.rotation_transform,
-                        &depth_buffer,
                     )?;
                 }
                 log_maze_obstacles(rec, &maze)?;
