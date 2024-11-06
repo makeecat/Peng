@@ -2587,27 +2587,20 @@ pub fn log_mesh(
 /// log depth image data to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
-/// * `depth_image` - The depth image data
-/// * `resolution` - The width and height of the depth image
-/// * `min_depth` - The minimum depth value
-/// * `max_depth` - The maximum depth value
+/// * `cam` - The Camera instance
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
 /// ```no_run
-/// use peng_quad::log_depth_image;
+/// use peng_quad::{log_depth_image, Camera};
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
-/// let depth_image = vec![0.0; 640 * 480];
-/// log_depth_image(&rec, &depth_image, (640usize, 480usize), 0.0, 1.0).unwrap();
+/// let camera = Camera::new((640, 480), 0.1, 100.0, 60.0);
+/// log_depth_image(&rec, &camera).unwrap();
 /// ```
-pub fn log_depth_image(
-    rec: &rerun::RecordingStream,
-    depth_image: &[f32],
-    resolution: (usize, usize),
-    min_depth: f32,
-    max_depth: f32,
-) -> Result<(), SimulationError> {
-    let (width, height) = resolution;
+pub fn log_depth_image(rec: &rerun::RecordingStream, cam: &Camera) -> Result<(), SimulationError> {
+    let (width, height) = (cam.resolution.0, cam.resolution.1);
+    let (min_depth, max_depth) = (cam.near, cam.far);
+    let depth_image = &cam.depth_buffer;
     let mut image = rerun::external::ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
     image

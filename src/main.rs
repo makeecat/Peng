@@ -143,7 +143,7 @@ fn main() -> Result<(), SimulationError> {
         }
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
-        let (_measured_accel, _measured_gyro) = imu.read(true_accel, true_gyro)?;
+        let (measured_accel, measured_gyro) = imu.read(true_accel, true_gyro)?;
         if i % (config.simulation.simulation_frequency / config.simulation.log_frequency) == 0 {
             if config.render_depth {
                 camera.render_depth(
@@ -163,17 +163,11 @@ fn main() -> Result<(), SimulationError> {
                     &quad,
                     &desired_position,
                     &desired_velocity,
-                    &_measured_accel,
-                    &_measured_gyro,
+                    &measured_accel,
+                    &measured_gyro,
                 )?;
                 if config.render_depth {
-                    log_depth_image(
-                        rec,
-                        &camera.depth_buffer,
-                        camera.resolution,
-                        camera.near,
-                        camera.far,
-                    )?;
+                    log_depth_image(rec, &camera)?;
                     log_pinhole_depth(
                         rec,
                         &camera,
