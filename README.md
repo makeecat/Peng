@@ -36,7 +36,7 @@ You can configure the simulation through config file, see [quad.yaml](config/qua
 
 If you encountered any issue with the rerun:
 
-1. Please ensure you installed the same version of rerun-cli of the rerun version in [Cargo.toml](https://github.com/makeecat/Peng/blob/main/Cargo.toml) by checking
+1. Please ensure you installed the same version of rerun-cli by checking the rerun version in [Cargo.toml](https://github.com/makeecat/Peng/blob/main/Cargo.toml):
 
 ```bash
 rerun --version
