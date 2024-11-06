@@ -425,6 +425,8 @@ impl Imu {
         Ok(())
     }
     /// Simulates IMU readings with added bias and noise
+    ///
+    /// The added bias and noise are based on normal distributions
     /// # Arguments
     /// * `true_acceleration` - The true acceleration vector
     /// * `true_angular_velocity` - The true angular velocity vector
@@ -457,6 +459,9 @@ impl Imu {
     }
 }
 /// PID controller for quadrotor position and attitude control
+///
+/// The kpid_pos and kpid_att gains are following the format of
+/// porportional, derivative and integral gains
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
@@ -2130,7 +2135,7 @@ impl Camera {
     /// # Example
     /// ```
     /// use peng_quad::Camera;
-    /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
+    /// let camera = Camera::new((800, 600), 1.0, 5.0, 120.0);
     /// ```
     pub fn new(resolution: (usize, usize), fov_vertical: f32, near: f32, far: f32) -> Self {
         let (width, height) = resolution;
@@ -2165,6 +2170,9 @@ impl Camera {
     }
 
     /// Renders the depth of the scene from the perspective of the quadrotor
+    ///
+    /// When the depth value is out of the near and far clipping planes, it is set to infinity
+    /// When the resolution is larger than 32x24, multi-threading can accelerate the rendering
     /// # Arguments
     /// * `quad_position` - The position of the quadrotor
     /// * `quad_orientation` - The orientation of the quadrotor
@@ -2539,7 +2547,7 @@ pub fn log_trajectory(
     )?;
     Ok(())
 }
-/// log mesh data to the rerun recording stream
+/// Log mesh data to the rerun recording stream
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `division` - The number of divisions in the mesh
@@ -2586,7 +2594,10 @@ pub fn log_mesh(
     )?;
     Ok(())
 }
-/// log depth image data to the rerun recording stream
+/// Log depth image data to the rerun recording stream
+///
+/// When the depth value is `f32::INFINITY`, the pixel is considered invalid and logged as black
+/// When the resolution is larger than 32x24, multi-threading can accelerate the rendering
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `cam` - The Camera instance
@@ -2679,6 +2690,7 @@ pub fn log_depth_image(
 /// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
 /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
 /// log_pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform).unwrap();
+/// ```
 
 pub fn log_pinhole_depth(
     rec: &rerun::RecordingStream,
