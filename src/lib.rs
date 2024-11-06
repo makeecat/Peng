@@ -2169,7 +2169,7 @@ impl Camera {
     /// * `quad_position` - The position of the quadrotor
     /// * `quad_orientation` - The orientation of the quadrotor
     /// * `maze` - The maze in the scene
-    /// * `depth_buffer` - The depth buffer to store the depth values
+    /// * `use_multi_threading` - Whether to use multi-threading to render the depth
     /// # Errors
     /// * If the depth buffer is not large enough to store the depth values
     /// # Example
@@ -2180,8 +2180,10 @@ impl Camera {
     /// let quad_position = Vector3::new(0.0, 0.0, 0.0);
     /// let quad_orientation = UnitQuaternion::identity();
     /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
-    /// let use_multithreading = true;
-    /// camera.render_depth(&quad_position, &quad_orientation, &maze, use_multithreading);
+    /// let use_multi_threading = true;
+    /// camera.render_depth(&quad_position, &quad_orientation, &maze, use_multi_threading);
+    /// let use_multi_threading = false;
+    /// camera.render_depth(&quad_position, &quad_orientation, &maze, use_multi_threading);
     /// ```
     pub fn render_depth(
         &mut self,
@@ -2588,6 +2590,7 @@ pub fn log_mesh(
 /// # Arguments
 /// * `rec` - The rerun::RecordingStream instance
 /// * `cam` - The Camera instance
+/// * `use_multi_threading` - Whether to use multithreading to log the depth image
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
@@ -2595,32 +2598,62 @@ pub fn log_mesh(
 /// use peng_quad::{log_depth_image, Camera};
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let camera = Camera::new((640, 480), 0.1, 100.0, 60.0);
-/// log_depth_image(&rec, &camera).unwrap();
+/// let use_multi_threading = false;
+/// log_depth_image(&rec, &camera, use_multi_threading).unwrap();
+/// let use_multi_threading = true;
+/// log_depth_image(&rec, &camera, use_multi_threading).unwrap();
 /// ```
-pub fn log_depth_image(rec: &rerun::RecordingStream, cam: &Camera) -> Result<(), SimulationError> {
+pub fn log_depth_image(
+    rec: &rerun::RecordingStream,
+    cam: &Camera,
+    use_multi_threading: bool,
+) -> Result<(), SimulationError> {
     let (width, height) = (cam.resolution.0, cam.resolution.1);
     let (min_depth, max_depth) = (cam.near, cam.far);
     let depth_image = &cam.depth_buffer;
-    let mut image = rerun::external::ndarray::Array::zeros((height, width, 3));
+    let mut image: rerun::external::ndarray::Array<u8, _> =
+        rerun::external::ndarray::Array::zeros((height, width, 3));
     let depth_range = max_depth - min_depth;
-    image
-        .axis_iter_mut(rerun::external::ndarray::Axis(0))
-        .enumerate()
-        .for_each(|(y, mut row)| {
-            for (x, mut pixel) in row
-                .axis_iter_mut(rerun::external::ndarray::Axis(0))
-                .enumerate()
-            {
-                let depth = depth_image[y * width + x];
-                let color = if depth.is_finite() {
-                    let normalized_depth = ((depth - min_depth) / depth_range).clamp(0.0, 1.0);
-                    color_map_fn(normalized_depth * 255.0)
-                } else {
-                    (0, 0, 0)
-                };
-                (pixel[0], pixel[1], pixel[2]) = color;
-            }
-        });
+    let scale_factor = 255.0 / depth_range;
+    if use_multi_threading {
+        const CHUNK_SIZE: usize = 32;
+        image
+            .as_slice_mut()
+            .expect("Failed to get mutable slice of image")
+            .par_chunks_exact_mut(CHUNK_SIZE * 3)
+            .enumerate()
+            .for_each(|(chunk_index, chunk)| {
+                let start_index = chunk_index * 32;
+                for (i, pixel) in chunk.chunks_exact_mut(3).enumerate() {
+                    let idx = start_index + i;
+                    let depth = depth_image[idx];
+                    let color = if depth.is_finite() {
+                        let normalized_depth =
+                            ((depth - min_depth) * scale_factor).clamp(0.0, 255.0);
+                        color_map_fn(normalized_depth)
+                    } else {
+                        (0, 0, 0)
+                    };
+                    (pixel[0], pixel[1], pixel[2]) = color;
+                }
+            });
+    } else {
+        for (index, pixel) in image
+            .as_slice_mut()
+            .expect("Failed to get mutable slice of image")
+            .chunks_exact_mut(3)
+            .enumerate()
+        {
+            let depth = depth_image[index];
+            let color = if depth.is_finite() {
+                let normalized_depth = ((depth - min_depth) * scale_factor).clamp(0.0, 255.0);
+                color_map_fn(normalized_depth)
+            } else {
+                (0, 0, 0)
+            };
+            (pixel[0], pixel[1], pixel[2]) = color;
+        }
+    }
     let rerun_image = rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image)
         .map_err(|e| SimulationError::OtherError(format!("Failed to create rerun image: {}", e)))?;
     rec.log("world/quad/cam/depth", &rerun_image)?;
