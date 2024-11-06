@@ -2211,7 +2211,7 @@ impl Camera {
                         *depth = ray_cast(
                             quad_position,
                             &rotation_world_to_camera,
-                            &(rotation_camera_to_world * &self.ray_directions[ray_idx]),
+                            &(rotation_camera_to_world * self.ray_directions[ray_idx]),
                             maze,
                             self.near,
                             self.far,
@@ -2270,19 +2270,25 @@ pub fn ray_cast(
     let mut closest_hit = far;
     // Inline tube intersection
     for axis in 0..3 {
-        if direction[axis].abs() > f32::EPSILON {
-            for &bound in &[maze.lower_bounds[axis], maze.upper_bounds[axis]] {
-                let t = (bound - origin[axis]) / direction[axis];
-                if t > near && t < closest_hit {
-                    let intersection_point = origin + direction * t;
-                    if (0..3).all(|i| {
-                        i == axis
-                            || (intersection_point[i] >= maze.lower_bounds[i]
-                                && intersection_point[i] <= maze.upper_bounds[i])
-                    }) {
-                        closest_hit = t;
-                    }
+        let t_near = if direction[axis] > 0.0 {
+            (maze.upper_bounds[axis] - origin[axis]) / direction[axis]
+        } else {
+            (maze.lower_bounds[axis] - origin[axis]) / direction[axis]
+        };
+        if t_near > near && t_near < closest_hit {
+            let intersection_point = origin + direction * t_near;
+            let mut valid = true;
+            for i in 0..3 {
+                if i != axis
+                    && (intersection_point[i] < maze.lower_bounds[i]
+                        || intersection_point[i] > maze.upper_bounds[i])
+                {
+                    valid = false;
+                    break;
                 }
+            }
+            if valid {
+                closest_hit = t_near;
             }
         }
     }
@@ -2639,7 +2645,7 @@ pub fn log_depth_image(
 /// * If the data cannot be logged to the recording stream
 /// # Example
 /// ```no_run
-/// use peng_quad::{pinhole_depth, Camera};
+/// use peng_quad::{log_pinhole_depth, Camera};
 /// use nalgebra::{Vector3, UnitQuaternion};
 /// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
 /// let depth_image = vec![ 0.0f32 ; 640 * 480];
@@ -2647,7 +2653,7 @@ pub fn log_depth_image(
 /// let cam_orientation = UnitQuaternion::identity();
 /// let cam_transform = [0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
 /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
-/// pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform, &depth_image).unwrap();
+/// log_pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform).unwrap();
 
 pub fn log_pinhole_depth(
     rec: &rerun::RecordingStream,
@@ -2655,8 +2661,8 @@ pub fn log_pinhole_depth(
     cam_position: Vector3<f32>,
     cam_orientation: UnitQuaternion<f32>,
     cam_transform: [f32; 9],
-    depth_image: &[f32],
 ) -> Result<(), SimulationError> {
+    let depth_image = &cam.depth_buffer;
     let (width, height) = cam.resolution;
     let pinhole_camera = rerun::Pinhole::from_focal_length_and_resolution(
         (cam.horizontal_focal_length, cam.vertical_focal_length),

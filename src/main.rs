@@ -180,7 +180,6 @@ fn main() -> Result<(), SimulationError> {
                         quad.position,
                         quad.orientation,
                         config.camera.rotation_transform,
-                        &camera.depth_buffer,
                     )?;
                 }
                 log_maze_obstacles(rec, &maze)?;
