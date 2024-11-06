@@ -2196,12 +2196,6 @@ impl Camera {
             * Matrix3::new(1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0);
         let rotation_world_to_camera = rotation_camera_to_world.transpose();
 
-        // Pre-compute rotated ray directions
-        let rotated_rays: Vec<Vector3<f32>> = self
-            .ray_directions
-            .iter()
-            .map(|&dir| rotation_camera_to_world * dir)
-            .collect();
         const CHUNK_SIZE: usize = 64;
         if use_multi_threading {
             self.depth_buffer
@@ -2217,7 +2211,7 @@ impl Camera {
                         *depth = ray_cast(
                             quad_position,
                             &rotation_world_to_camera,
-                            &rotated_rays[ray_idx],
+                            &(rotation_camera_to_world * &self.ray_directions[ray_idx]),
                             maze,
                             self.near,
                             self.far,
