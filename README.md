@@ -18,7 +18,8 @@ Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator,
 ### Installation from Crates.io
 
 ```bash
-cargo install rerun-cli # ensure you installed rerun-cli>=0.19.0 by checking rerun --version
+cargo install rerun-cli
+# ensure you installed rerun-cli>=0.19.0 by checking rerun --version
 cargo install peng_quad
 peng_quad config/quad.yaml
 ```
@@ -33,7 +34,15 @@ cargo run --release config/quad.yaml
 
 You can configure the simulation through config file, see [quad.yaml](config/quad.yaml) for example.
 
-Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
+If you encountered any issue with the rerun:
+
+1. Please ensure you installed the same version of rerun-cli of the rerun version in [Cargo.toml](https://github.com/makeecat/Peng/blob/main/Cargo.toml) by checking
+
+```bash
+rerun --version
+```
+
+2. Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
 
 ## Overview
 
