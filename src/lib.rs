@@ -2633,7 +2633,6 @@ pub fn log_depth_image(rec: &rerun::RecordingStream, cam: &Camera) -> Result<(),
 /// * `cam_position` - The position vector of the camera (aligns with the quad)
 /// * `cam_orientation` - The orientation quaternion of quad
 /// * `cam_transform` - The transform matrix between quad and camera alignment
-/// * `depth_image` - The depth image data
 /// # Errors
 /// * If the data cannot be logged to the recording stream
 /// # Example
