@@ -20,20 +20,25 @@ Peng is a minimal quadrotor autonomy framework written in Rust that provides rea
   - High-fidelity quadrotor dynamics with configurable parameters
   - IMU and depth sensor simulation
   - Optional RK4 integration for accurate dynamics
-- 🎮 **Advanced Control** - PID control for position and attitude with tunable gains
+- 🎮 **Advanced Control**
+  - PID control for position and attitude with tunable gains
+  - Integral windup prevention
+  - Support for different control frequencies
 - 📍 **Rich Trajectory Planning**
-  - Minimum jerk line trajectories
-  - Lissajous curves
-  - Circular paths
-  - Obstacle avoidance
-  - Waypoint navigation
+  - Minimum jerk line trajectory planner
+  - Lissajous curve planner
+  - Circular trajectory planner
+  - Obstacle avoidance planner
+  - Waypoint navigation planner
+  - Landing planner
 - 📊 **Visualization & Debug**
   - Real-time 3D visualization via rerun.io
   - Depth map rendering
   - State telemetry logging
+  - Configurable logging frequencies
 - ⚡ **Performance**
-  - Multi-threaded depth rendering
   - Memory-safe and Efficient Rust implementation
+  - Multi-threaded depth rendering
 
 ## 🚀 Getting Started
 
