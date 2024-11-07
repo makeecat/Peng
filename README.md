@@ -8,17 +8,50 @@
 [![dependency status](https://deps.rs/repo/github/makeecat/peng/status.svg)](https://deps.rs/repo/github/makeecat/peng)
 [![Gitter](https://img.shields.io/gitter/room/peng/peng)](https://app.gitter.im/#/room/#peng:gitter.im)
 
-## What is Peng
+## 🔍 Overview
 
-Peng is a minimal quadrotor autonomy framework in Rust. It includes a simulator, controller, and planner, providing a basic framework for simulating quadrotor dynamics and control.
-![demo](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng_demo.gif)
+Peng is a minimal quadrotor autonomy framework written in Rust that provides real-time dynamics simulation, trajectory planning, and control with modern visualization capabilities.
 
-## Getting Started
+[![rerun demo](https://raw.githubusercontent.com/makeecat/Peng/main/assets/Peng_demo.gif)](https://rerun.io/viewer?url=https%3A%2F%2Fyangrobotics.com%2Ffiles%2Fpeng_v0.5.3_demo.rrd)
+
+## 🎯 Key Features
+
+- 🚁 **Real-time Simulation**
+  - High-fidelity quadrotor dynamics with configurable parameters
+  - IMU and depth sensor simulation
+  - Optional RK4 integration for accurate dynamics
+- 🎮 **Advanced Control**
+  - PID control for position and attitude with tunable gains
+  - Integral windup prevention
+  - Support for different control frequencies
+- 📍 **Rich Trajectory Planning**
+  - Minimum jerk line trajectory planner
+  - Lissajous curve planner
+  - Circular trajectory planner
+  - Obstacle avoidance planner
+  - Waypoint navigation planner
+  - Landing planner
+- 📊 **Visualization & Debug**
+  - Real-time 3D visualization via rerun.io
+  - Depth map rendering
+  - State telemetry logging
+  - Configurable logging frequencies
+- ⚡ **Performance**
+  - Memory-safe and Efficient Rust implementation
+  - Multi-threaded depth rendering
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install)
+- [rerun-cli](https://rerun.io/docs/getting-started/installing-viewer)
 
 ### Installation from Crates.io
 
 ```bash
-cargo install rerun-cli # ensure you installed rerun-cli>=0.19.0 by checking rerun --version
+# Install rerun-cli (ensure version >= 0.19.0)
+cargo install rerun-cli
 cargo install peng_quad
 peng_quad config/quad.yaml
 ```
@@ -26,63 +59,45 @@ peng_quad config/quad.yaml
 ### Installation from Source
 
 ```bash
+# Install rerun-cli (ensure version >= 0.19.0)
 cargo install rerun-cli
-git clone https://github.com/makeecat/Peng.git && cd Peng
+git clone https://github.com/makeecat/Peng.git
+cd Peng
 cargo run --release config/quad.yaml
 ```
 
-You can configure the simulation through config file, see [quad.yaml](config/quad.yaml) for example.
+## ⚙️ Configuration
 
-Please follow [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting) if you are using Linux or WSL2.
+- You can configure the simulation through config file, see [quad.yaml](config/quad.yaml) for example.
+- Configure simulation parameters such as mass, inertia, and control gains.
+- Configure control parameters such as PID gains.
+- Configure trajectory planner parameters such as waypoints, obstacles, and trajectory type.
+- Configure visualization parameters such as camera intrinsics and depth rendering.
 
-## Overview
+## 🔧 Troubleshooting
 
-### Quadrotor Simulator
+If you encountered any issue with the rerun:
 
-Simulates realistic quadrotor dynamics with properties like position, velocity, orientation, angular velocity, mass, and inertia. Includes methods for updating dynamics with control inputs and simulating IMU readings and Depth map rendering.
+1. Verify rerun-cli version matches rerun version in [Cargo.toml](https://github.com/makeecat/Peng/blob/main/Cargo.toml):
 
-### PID Controller
+```bash
+rerun --version
+```
 
-Controls position and attitude with configurable gains for proportional, integral, and derivative terms. Handles both position and attitude control.
+2. For Linux/WSL2 users, consult the [rerun troubleshooting](https://rerun.io/docs/getting-started/troubleshooting).
 
-### Trajectory Planners
+## 🗺️ Roadmap
 
-Includes multiple planners:
-
-- Hover Planner
-- Minimum Jerk Line Planner
-- Lissajous Curve Planner
-- Circular Trajectory Planner
-- Landing Planner
-- Obstacle Avoidance Planner
-- Waypoint Planner
-
-### Obstacle Simulation
-
-Simulates moving obstacles in the environment, with collision detection and avoidance capabilities based on potential field.
-
-### Data Logging and Visualization
-
-Logs comprehensive simulation data including quadrotor state, desired positions, IMU readings, and depth map rendering. Visualizes the simulation using the rerun library.
-
-## Features
-
-- Realistic quadrotor dynamics simulation
-- IMU sensor simulation with configurable noise parameters
-- Multiple trajectory planners for diverse flight patterns
-- PID controller for position and attitude control
-- Obstacle generation and avoidance
-- Depth map rendering based on primitives
-- Integration with rerun for real-time visualization
-
-## TODO
-
-- [ ] Environment Effect simulation such as wind field
-- [ ] Add motor speed simulation
+- [ ] Wind field and environmental effects
+- [ ] Motor dynamics simulation
 - [ ] Multi-quadrotor simulation
-- [ ] MPC controller
+- [ ] Model Predictive Control (MPC)
 
-## License
+## 🤝 Contributing
+
+We welcome contributions of all kinds! Please check out the [Contributing Guidelines](CONTRIBUTING.md) for more details.
+
+## 📄 License
 
 Peng is free, open source and permissively licensed!
 Except where noted (below and/or in individual files), all code in this repository is dual-licensed under either:
@@ -93,21 +108,17 @@ Except where noted (below and/or in individual files), all code in this reposito
 
 This means you can select the license you prefer!
 
-## Why call it Peng?
+## 🐦 Why call it Peng?
 
-Peng (traditional Chinese: 鵬; simplified Chinese: 鹏; pinyin: péng; Wade–Giles: p'eng) or Dapeng (大鵬) is a giant bird that transforms from a Kun (鯤; 鲲; kūn; k'un) giant fish in Chinese mythology.
+Peng (鵬/鹏, péng), or Dapeng (大鵬), represents a mythical Chinese bird that transforms from a giant Kun (鯤/鲲) fish. This name reflects our framework's adaptability and transformative capabilities.
 
-The pipeline is designed to be minimal and for educational purpose.
-We chose the name Peng because our pipeline is flexible and can transform to suit different needs, just like the mythical bird.
-
-Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
-
-## Blog posts
+## 📝 Blog Posts
 
 - [Peng #1: Minimal quadrotor pipeline in Rust](https://yangrobotics.com/peng-1-minimal-quadrotor-pipeline-in-rust)
 - [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](https://yangrobotics.com/peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
+- [Peng #3: Optimization of Depth Rendering and RK4-based Dynamics Update](https://yangrobotics.com/peng-3-optimization-of-depth-rendering-and-rk4-based-dynamics-update)
 
-## Citation
+## 📚 Citation
 
 If you use this project in your research or work, please cite it as follows:
 

@@ -1,13 +1,39 @@
-//! # Quadrotor Simulation
-//! This crate provides a comprehensive simulation environment for quadrotor drones.
-//! It includes models for quadrotor dynamics, IMU simulation, various trajectory planners,
-//! and a PID controller for position and attitude control.
-//! ## Features
-//! - Realistic quadrotor dynamics simulation
-//! - IMU sensor simulation with configurable noise parameters
-//! - Multiple trajectory planners including hover, minimum jerk, Lissajous curves, and circular paths
-//! - PID controller for position and attitude control
-//! - Integration with the `rerun` crate for visualization
+//! # Peng - A Minimal Quadrotor Autonomy Framework
+//!
+//! A high-performance quadrotor autonomy framework written in Rust that provides
+//! real-time dynamics simulation, trajectory planning, and control with modern
+//! visualization capabilities.
+//!
+//! # Features
+//!
+//! ## Real-time Simulation
+//! - High-fidelity quadrotor dynamics with configurable parameters
+//! - IMU and depth sensor simulation
+//! - Optional RK4 integration for accurate dynamics
+//!
+//! ## Advanced Control
+//! - PID control for position and attitude with tunable gains
+//! - Integral windup prevention
+//! - Support for different control frequencies
+//!
+//! ## Rich Trajectory Planning
+//! - Minimum jerk line trajectory planner
+//! - Lissajous curve planner
+//! - Circular trajectory planner
+//! - Obstacle avoidance planner
+//! - Waypoint navigation planner
+//! - Landing planner
+//!
+//! ## Visualization & Debug
+//! - Real-time 3D visualization via rerun.io
+//! - Depth map rendering
+//! - State telemetry logging
+//! - Configurable logging frequencies
+//!
+//! ## Performance
+//! - Memory-safe and Efficient Rust implementation
+//! - Multi-threaded depth rendering
+//!
 //! ## Example
 //! ```
 //! use nalgebra::Vector3;
