@@ -115,7 +115,7 @@ Reference: https://en.wikipedia.org/wiki/Peng_(mythology)
 
 - [Peng #1: Minimal quadrotor pipeline in Rust](https://yangrobotics.com/peng-1-minimal-quadrotor-pipeline-in-rust)
 - [Peng #2: Error Handling, Configuration System and Obstacle Avoidance Planner](https://yangrobotics.com/peng-2-error-handling-configuration-system-and-obstacle-avoidance-planner)
-- [Peng #3: Optimization of Depth Rendering and RK4-based Dynamics Update of A Quadrotor Autonomy Pipeline in Rust](https://yangrobotics.com/peng-3-optimization-of-depth-rendering-and-rk4-based-dynamics-update-of-a-quadrotor-autonomy-pipeline)
+- [Peng #3: Optimization of Depth Rendering and RK4-based Dynamics Update](https://yangrobotics.com/peng-3-optimization-of-depth-rendering-and-rk4-based-dynamics-update)
 
 ## Citation
 
