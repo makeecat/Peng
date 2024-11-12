@@ -58,6 +58,12 @@ fn main() -> Result<(), SimulationError> {
         config.camera.near,
         config.camera.far,
     );
+    if let Some(thread_count) = config.max_render_threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(thread_count)
+            .build_global()
+            .unwrap();
+    }
     let mut planner_manager = PlannerManager::new(Vector3::zeros(), 0.0);
     let mut trajectory = Trajectory::new(Vector3::new(0.0, 0.0, 0.0));
     let mut previous_thrust = 0.0;
