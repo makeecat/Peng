@@ -24,6 +24,8 @@ pub struct Config {
     pub planner_schedule: Vec<PlannerStep>,
     /// Rerun blueprint path
     pub rerun_blueprint: String,
+    /// Maximum number of threads for rendering
+    pub max_render_threads: Option<usize>,
     /// Use rerun.io for recording
     pub use_rerun: bool,
     /// Render depth
