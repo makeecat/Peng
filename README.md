@@ -50,7 +50,7 @@ Peng is a minimal quadrotor autonomy framework written in Rust that provides rea
 ### Installation from Crates.io
 
 ```bash
-# Install rerun-cli (ensure version >= 0.19.0)
+# Install rerun-cli
 cargo install rerun-cli
 cargo install peng_quad
 peng_quad config/quad.yaml
@@ -59,7 +59,7 @@ peng_quad config/quad.yaml
 ### Installation from Source
 
 ```bash
-# Install rerun-cli (ensure version >= 0.19.0)
+# Install rerun-cli
 cargo install rerun-cli
 git clone https://github.com/makeecat/Peng.git
 cd Peng
