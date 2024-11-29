@@ -2717,7 +2717,6 @@ pub fn log_depth_image(
 /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
 /// log_pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform).unwrap();
 /// ```
-
 pub fn log_pinhole_depth(
     rec: &rerun::RecordingStream,
     cam: &Camera,
