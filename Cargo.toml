@@ -30,8 +30,8 @@ lto = "thin"      # Do a second optimization pass over the entire program, inclu
 nalgebra = "0.33.2"
 rand = { version = "0.8.5", features = ["rand_chacha"] }
 rand_distr = "0.4.3"
-rerun = "0.20.2"
-thiserror = "2.0.3"
+rerun = "0.20.3"
+thiserror = "2.0.4"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_yaml = "0.9.34"
 env_logger = "0.11.5"
