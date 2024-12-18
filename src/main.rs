@@ -95,7 +95,6 @@ fn main() -> Result<(), SimulationError> {
     if let Some(rec) = &rec {
         rec.log_file_from_path(config.rerun_blueprint, None, false)?;
         rec.set_time_seconds("timestamp", 0);
-        log_mesh(rec, config.mesh.division, config.mesh.spacing)?;
         log_maze_tube(rec, &maze)?;
         log_maze_obstacles(rec, &maze)?;
     }

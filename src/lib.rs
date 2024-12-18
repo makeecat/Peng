@@ -2573,53 +2573,6 @@ pub fn log_trajectory(
     )?;
     Ok(())
 }
-/// Log mesh data to the rerun recording stream
-/// # Arguments
-/// * `rec` - The rerun::RecordingStream instance
-/// * `division` - The number of divisions in the mesh
-/// * `spacing` - The spacing between divisions
-/// # Errors
-/// * If the data cannot be logged to the recording stream
-/// # Example
-/// ```no_run
-/// use peng_quad::log_mesh;
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
-/// log_mesh(&rec, 10, 0.1).unwrap();
-/// ```
-pub fn log_mesh(
-    rec: &rerun::RecordingStream,
-    division: usize,
-    spacing: f32,
-) -> Result<(), SimulationError> {
-    let grid_size: usize = division + 1;
-    let half_grid_size: f32 = (division as f32 * spacing) / 2.0;
-    let points: Vec<rerun::external::glam::Vec3> = (0..grid_size)
-        .flat_map(|i| {
-            (0..grid_size).map(move |j| {
-                rerun::external::glam::Vec3::new(
-                    j as f32 * spacing - half_grid_size,
-                    i as f32 * spacing - half_grid_size,
-                    0.0,
-                )
-            })
-        })
-        .collect();
-    let horizontal_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
-        .map(|i| points[i * grid_size..(i + 1) * grid_size].to_vec())
-        .collect();
-    let vertical_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
-        .map(|j| (0..grid_size).map(|i| points[i * grid_size + j]).collect())
-        .collect();
-    let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
-        horizontal_lines.into_iter().chain(vertical_lines).collect();
-    rec.log(
-        "world/mesh",
-        &rerun::LineStrips3D::new(line_strips)
-            .with_colors([rerun::Color::from_rgb(255, 255, 255)])
-            .with_radii([0.02]),
-    )?;
-    Ok(())
-}
 /// Log depth image data to the rerun recording stream
 ///
 /// When the depth value is `f32::INFINITY`, the pixel is considered invalid and logged as black
