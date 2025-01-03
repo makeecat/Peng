@@ -6,7 +6,7 @@
 [![Docs](https://docs.rs/peng_quad/badge.svg)](https://docs.rs/peng_quad/latest/peng_quad/)
 [![CI](https://github.com/makeecat/Peng/actions/workflows/CI.yml/badge.svg)](https://github.com/makeecat/Peng/actions/workflows/CI.yml)
 [![dependency status](https://deps.rs/repo/github/makeecat/peng/status.svg)](https://deps.rs/repo/github/makeecat/peng)
-[![Gitter](https://img.shields.io/gitter/room/peng/peng)](https://app.gitter.im/#/room/#peng:gitter.im)
+[![Discord](https://img.shields.io/discord/1324766515077185688?label=Discord&logo=discord)](https://discord.gg/NDsZXpGWPR)
 
 ## 🔍 Overview
 
