@@ -17,11 +17,26 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --all-features --verbose
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+    - name: Setup rust-cache
+      uses: Swatinem/rust-cache@v2
     - name: Check Formating
-      run: cargo fmt --all -- --check
+      run: cargo +stable fmt --all -- --check
     - name: Run Clippy
-      run: cargo clippy -- -D warnings
+      run: cargo +stable clippy --workspace --all-targets --all-features -- --deny warnings
+    - name: Build
+      run: cargo +stable build --workspace --all-targets --all-features
+    - name: Run tests
+      run: cargo +stable test --doc --workspace
+  typos:
+    name: Typos Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@master
+        with:
+          config: ./.config/_typos.toml
