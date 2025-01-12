@@ -27,7 +27,7 @@ jobs:
     - name: Check Formating
       run: cargo +stable fmt --all -- --check
     - name: Run Clippy
-      run: cargo +stable clippy --workspace --all-targets --all-features  -D warnings
+      run: cargo +stable clippy --workspace --all-targets --all-features -- --deny warnings
     - name: Build
       run: cargo +stable build --workspace --all-targets --all-features
     - name: Run tests
