@@ -487,7 +487,7 @@ impl Imu {
 /// PID controller for quadrotor position and attitude control
 ///
 /// The kpid_pos and kpid_att gains are following the format of
-/// porportional, derivative and integral gains
+/// proportional, derivative and integral gains
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
