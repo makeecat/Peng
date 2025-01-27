@@ -427,7 +427,7 @@ impl Imu {
             gyro_noise: Normal::new(0.0, gyro_noise_std)?,
             accel_bias_drift: Normal::new(0.0, accel_bias_std)?,
             gyro_bias_drift: Normal::new(0.0, gyro_bias_std)?,
-            rng: ChaCha8Rng::from_entropy(),
+            rng: ChaCha8Rng::from_os_rng(),
         })
     }
     /// Updates the IMU biases over time
@@ -2020,7 +2020,7 @@ impl Obstacle {
 ///     obstacles: vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)],
 ///     obstacles_velocity_bounds: [0.0, 0.0, 0.0],
 ///     obstacles_radius_bounds: [0.0, 0.0],
-///     rng: ChaCha8Rng::from_entropy(),
+///     rng: ChaCha8Rng::from_os_rng(),
 /// };
 /// ```
 pub struct Maze {
@@ -2064,7 +2064,7 @@ impl Maze {
             obstacles: Vec::new(),
             obstacles_velocity_bounds,
             obstacles_radius_bounds,
-            rng: ChaCha8Rng::from_entropy(),
+            rng: ChaCha8Rng::from_os_rng(),
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -2082,18 +2082,27 @@ impl Maze {
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[0]..self.upper_bounds[0]),
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[1]..self.upper_bounds[1]),
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[2]..self.upper_bounds[2]),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[0]..self.upper_bounds[0],
+                    ),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[1]..self.upper_bounds[1],
+                    ),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[2]..self.upper_bounds[2],
+                    ),
                 );
                 let v_bounds = self.obstacles_velocity_bounds;
                 let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
+                let radius = rand::Rng::random_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
