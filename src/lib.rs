@@ -1721,29 +1721,34 @@ pub struct QPpolyTrajPlanner{
     pub coeff: DMatrix<f64>, 
     // Order of the polynomial to be used in computing trajectory
     pub polyorder: usize,
-    // Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk, and so on)
+    // Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub min_deriv: usize,
-    // Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk, and so on)
+    // Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub smooth_upto: usize,
     // Vector of time values for each segment, which tells the planner how much time each segment should take to complete. Expressed in seconds.
     pub segment_times: Vec<f32>,
     // Waypoints for each segment. Note that there should be segment_times.len() + 1 values for waypoints, with the position of the quadrotor being the very first waypoint.
     pub waypoints: Vec<Vec<f32>>,
-    // Maximum velocity constraint. NOTE: OSQP solver has trouble converging to an optimal solution when setting inequality constraints. Set to 0.0 to disregard these constraints.
+    // Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
     pub max_velocity: f32,
-    // Maximum acceleration constraint. NOTE: OSQP solver has trouble converging to an optimal solution when setting inequality constraints. Set to 0.0 to disregard these constraints.
+    // Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
     pub max_acceleration: f32,
     // Time at which the simulation starts. This value has no bearing to QPpolyTraj itself, but is used during simulation since we use relative time internally when computing values.
     pub start_time: f32,
-    // Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0.
+    // Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
     pub dt: f32,
 }
 /// Generate a new quadratic polynomial based waypoint planner
     /// # Arguments
-    /// * `waypoints` - List of waypoints
-    /// * `yaws` - List of yaw angles
+    /// * `waypoints` - List of waypoints (x, y, z, yaw)
     /// * `segment_times` - List of segment times to reach each waypoint
+    /// * `polyorder` - Order of the polynomial to be used in computing trajectory
+    /// * `min_deriv` - Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    /// * `smooth_upto` - Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    /// * `max_velocity` - Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+    /// * `max_acceleration` - Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
     /// * `start_time` - Start time of the trajectory
+    /// * `dt` - Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
     /// # Returns
     /// * A new quadratic polynomial based waypoint planner
     /// # Errors
@@ -1757,9 +1762,9 @@ pub struct QPpolyTrajPlanner{
     /// let min_deriv = 3;
     /// let polyorder = 9;
     /// let smooth_upto = 4;
-    /// let max_velocity = 12.0;
-    /// let max_acceleration = 6.0;
-    /// let dt = 0.001;
+    /// let max_velocity = 4.0;
+    /// let max_acceleration = 3.0;
+    /// let dt = 0.1;
     /// let start_time = 0.0;
     /// let mut qp_planner = QPpolyTraj::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
     /// ```
@@ -1832,16 +1837,8 @@ impl QPpolyTrajPlanner
     /* Solve the Quadratic Programming problem and compute the coefficients for the whole trajectory. The coefficients will be arranged as (poly_order*num_segments, num_dims)*/
     fn compute_coefficients(&mut self) -> Result<(), SimulationError>
     {
-        let settings:Settings;
+        let settings:Settings = Settings::default().max_iter(10000000).eps_abs(1e-6).eps_rel(5e-6).verbose(false); 
         
-        if self.max_acceleration > 0.0 && self.max_velocity > 0.0
-        {
-            settings = Settings::default().max_iter(10000000).eps_abs(1e0).eps_rel(5e0).verbose(false); // If we are imposing velocity and acceleration constraints, then lower the convergence criteria so that the solver can reach a solution (won't be a good solution) 
-        }
-        else
-        {
-            settings = Settings::default().max_iter(10000000).eps_abs(1e-6).eps_rel(5e-6).verbose(false); // Convergence criteria can be much stricter if there are no velocity and acceleration constraints.
-        }
 
         let (p, q, a, l, u) = self.prepare_qp_problem();
 
@@ -2119,7 +2116,7 @@ impl QPpolyTrajPlanner
         // Initialize the inequality matrix c, along with the vectors d and f, representing the inequality d <= c*x <= f, where x is the vector of coefficients.
 
         let mut c: DMatrix<f64> = DMatrix::zeros(num_constraints, coeff_num);
-        let d = DVector::from_element(num_constraints,0.0); // For now, the minimum value of all derivatives is 0.
+        let mut d = DVector::from_element(num_constraints,0.0); // We fill this up to -max_velocity or -max_acceleration.
         let mut f = DVector::from_element(num_constraints, 0.0); // We fill this up.
 
         let mut row_index = 0;
@@ -2134,20 +2131,19 @@ impl QPpolyTrajPlanner
             //Iterate over each time step in one segment
             while t < segment_time
             {
-                if t > 0.0 && t < segment_time-0.0
-                {
                 let row_velocity = self.basis(t,1);
 
                 c.row_mut(row_index).columns_mut(col_offset,self.polyorder).copy_from(&row_velocity.transpose());
                 f[row_index] = self.max_velocity as f64;
+                d[row_index] = -self.max_velocity as f64;
                 row_index += 1;
 
                 let row_acceleration = self.basis(t, 2);
 
                 c.row_mut(row_index).columns_mut(col_offset,self.polyorder).copy_from(&row_acceleration.transpose());
                 f[row_index] = self.max_acceleration as f64;
+                d[row_index] = -self.max_acceleration as f64;
                 row_index += 1;
-                }
                 t += self.dt; // Update time step to compute basis vector at the next step.
             }
         }
