@@ -2123,7 +2123,6 @@ impl QPpolyTrajPlanner
         let mut f = DVector::from_element(num_constraints, 0.0); // We fill this up.
 
         let mut row_index = 0;
-        let mut last_row: usize = 0;
 
         // Iterate over each segment, then each time step in one segment, compute its basis vector for velocity and acceleration, and set the maximum.
         for (i, &segment_time) in self.segment_times.iter().enumerate()
@@ -2149,10 +2148,8 @@ impl QPpolyTrajPlanner
                 f[row_index] = self.max_acceleration as f64;
                 row_index += 1;
                 }
-                t += 1.0; // Update time step to compute basis vector at the next step.
+                t += self.dt; // Update time step to compute basis vector at the next step.
             }
-            println!("Row index now: {}", row_index);
-            last_row = row_index - last_row;
         }
         // Resize the matrices using the number of populated rows. This ensures that only the populated rows are returned. 
         // NOTE: This is a roundabout method and should be replaced. Ideally, we should be able to compute the exact number of constraints for any case, to avoid dynamic resizing.
