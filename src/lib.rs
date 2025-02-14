@@ -1774,6 +1774,7 @@ use osqp::{CscMatrix, Problem, Settings};
 use std::ops::AddAssign;
 impl QPpolyTrajPlanner {
     /* Create a new instance of the QPpolyTraj object */
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         waypoints: Vec<Vec<f32>>,
         segment_times: Vec<f32>,
@@ -1817,8 +1818,6 @@ impl QPpolyTrajPlanner {
     ) -> (Vector3<f32>, Vector3<f32>, f32, f32) {
         let mut position = Vector3::zeros();
         let mut velocity = Vector3::zeros();
-        let yaw: f32;
-        let yaw_rate: f32;
 
         let pos_basis = self.basis(t, 0);
         let vel_basis = self.basis(t, 1);
@@ -1839,8 +1838,8 @@ impl QPpolyTrajPlanner {
             position[i] = pose_4d_f32[(0, i)];
             velocity[i] = vel_4d_f32[(0, i)];
         }
-        yaw = pose_4d_f32[(0, 3)];
-        yaw_rate = vel_4d_f32[(0, 3)];
+        let yaw = pose_4d_f32[(0, 3)];
+        let yaw_rate = vel_4d_f32[(0, 3)];
 
         (position, velocity, yaw, yaw_rate)
     }
@@ -2221,7 +2220,7 @@ impl QPpolyTrajPlanner {
                 b[i] = 0.0;
             } else {
                 for j in (i - derivative + 1..=i).rev() {
-                    coeff = coeff * (j as f64);
+                    coeff *= j as f64;
                 }
                 b[i] = coeff * t[power as usize];
             }
@@ -2247,7 +2246,7 @@ impl Planner for QPpolyTrajPlanner {
                 current_segment = i;
                 break;
             }
-            segment_start_time += segment_duration as f32;
+            segment_start_time += segment_duration;
         }
         // Evaluate the polynomial for the current segment
         let segment_time = relative_time - segment_start_time;
