@@ -77,13 +77,15 @@ fn main() -> Result<(), SimulationError> {
             params: step.params.clone(),
         })
         .collect();
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info");
+    }
     let rec = if config.use_rerun {
         let _rec = rerun::RecordingStreamBuilder::new("Peng").spawn()?;
         rerun::Logger::new(_rec.clone())
             .with_path_prefix("logs")
             .with_filter(rerun::default_log_filter())
-            .init()
-            .unwrap();
+            .init()?;
         Some(_rec)
     } else {
         env_logger::builder()
@@ -95,7 +97,6 @@ fn main() -> Result<(), SimulationError> {
     if let Some(rec) = &rec {
         rec.log_file_from_path(config.rerun_blueprint, None, false)?;
         rec.set_time_seconds("timestamp", 0);
-        log_mesh(rec, config.mesh.division, config.mesh.spacing)?;
         log_maze_tube(rec, &maze)?;
         log_maze_obstacles(rec, &maze)?;
     }

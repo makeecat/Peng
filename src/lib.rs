@@ -63,6 +63,9 @@ pub enum SimulationError {
     /// Error related to Rerun spawn process
     #[error("Rerun spawn error: {0}")]
     RerunSpawnError(#[from] rerun::SpawnError),
+    /// Error related to Rerun logger setup
+    #[error("Rerun SetLogger error: {0}")]
+    SetLoggerError(#[from] rerun::external::log::SetLoggerError),
     /// Error related to linear algebra operations
     #[error("Nalgebra error: {0}")]
     NalgebraError(String),
@@ -430,7 +433,7 @@ impl Imu {
             gyro_noise: Normal::new(0.0, gyro_noise_std)?,
             accel_bias_drift: Normal::new(0.0, accel_bias_std)?,
             gyro_bias_drift: Normal::new(0.0, gyro_bias_std)?,
-            rng: ChaCha8Rng::from_entropy(),
+            rng: ChaCha8Rng::from_os_rng(),
         })
     }
     /// Updates the IMU biases over time
@@ -490,7 +493,7 @@ impl Imu {
 /// PID controller for quadrotor position and attitude control
 ///
 /// The kpid_pos and kpid_att gains are following the format of
-/// porportional, derivative and integral gains
+/// proportional, derivative and integral gains
 /// # Example
 /// ```
 /// use nalgebra::Vector3;
@@ -2628,7 +2631,7 @@ impl Obstacle {
 ///     obstacles: vec![Obstacle::new(Vector3::new(0.0, 0.0, 0.0), Vector3::new(0.0, 0.0, 0.0), 1.0)],
 ///     obstacles_velocity_bounds: [0.0, 0.0, 0.0],
 ///     obstacles_radius_bounds: [0.0, 0.0],
-///     rng: ChaCha8Rng::from_entropy(),
+///     rng: ChaCha8Rng::from_os_rng(),
 /// };
 /// ```
 pub struct Maze {
@@ -2672,7 +2675,7 @@ impl Maze {
             obstacles: Vec::new(),
             obstacles_velocity_bounds,
             obstacles_radius_bounds,
-            rng: ChaCha8Rng::from_entropy(),
+            rng: ChaCha8Rng::from_os_rng(),
         };
         maze.generate_obstacles(num_obstacles);
         maze
@@ -2690,18 +2693,27 @@ impl Maze {
         self.obstacles = (0..num_obstacles)
             .map(|_| {
                 let position = Vector3::new(
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[0]..self.upper_bounds[0]),
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[1]..self.upper_bounds[1]),
-                    rand::Rng::gen_range(&mut self.rng, self.lower_bounds[2]..self.upper_bounds[2]),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[0]..self.upper_bounds[0],
+                    ),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[1]..self.upper_bounds[1],
+                    ),
+                    rand::Rng::random_range(
+                        &mut self.rng,
+                        self.lower_bounds[2]..self.upper_bounds[2],
+                    ),
                 );
                 let v_bounds = self.obstacles_velocity_bounds;
                 let r_bounds = self.obstacles_radius_bounds;
                 let velocity = Vector3::new(
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
-                    rand::Rng::gen_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[0]..v_bounds[0]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[1]..v_bounds[1]),
+                    rand::Rng::random_range(&mut self.rng, -v_bounds[2]..v_bounds[2]),
                 );
-                let radius = rand::Rng::gen_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
+                let radius = rand::Rng::random_range(&mut self.rng, r_bounds[0]..r_bounds[1]);
                 Obstacle::new(position, velocity, radius)
             })
             .collect();
@@ -3181,53 +3193,6 @@ pub fn log_trajectory(
     )?;
     Ok(())
 }
-/// Log mesh data to the rerun recording stream
-/// # Arguments
-/// * `rec` - The rerun::RecordingStream instance
-/// * `division` - The number of divisions in the mesh
-/// * `spacing` - The spacing between divisions
-/// # Errors
-/// * If the data cannot be logged to the recording stream
-/// # Example
-/// ```no_run
-/// use peng_quad::log_mesh;
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
-/// log_mesh(&rec, 10, 0.1).unwrap();
-/// ```
-pub fn log_mesh(
-    rec: &rerun::RecordingStream,
-    division: usize,
-    spacing: f32,
-) -> Result<(), SimulationError> {
-    let grid_size: usize = division + 1;
-    let half_grid_size: f32 = (division as f32 * spacing) / 2.0;
-    let points: Vec<rerun::external::glam::Vec3> = (0..grid_size)
-        .flat_map(|i| {
-            (0..grid_size).map(move |j| {
-                rerun::external::glam::Vec3::new(
-                    j as f32 * spacing - half_grid_size,
-                    i as f32 * spacing - half_grid_size,
-                    0.0,
-                )
-            })
-        })
-        .collect();
-    let horizontal_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
-        .map(|i| points[i * grid_size..(i + 1) * grid_size].to_vec())
-        .collect();
-    let vertical_lines: Vec<Vec<rerun::external::glam::Vec3>> = (0..grid_size)
-        .map(|j| (0..grid_size).map(|i| points[i * grid_size + j]).collect())
-        .collect();
-    let line_strips: Vec<Vec<rerun::external::glam::Vec3>> =
-        horizontal_lines.into_iter().chain(vertical_lines).collect();
-    rec.log(
-        "world/mesh",
-        &rerun::LineStrips3D::new(line_strips)
-            .with_colors([rerun::Color::from_rgb(255, 255, 255)])
-            .with_radii([0.02]),
-    )?;
-    Ok(())
-}
 /// Log depth image data to the rerun recording stream
 ///
 /// When the depth value is `f32::INFINITY`, the pixel is considered invalid and logged as black
@@ -3325,7 +3290,6 @@ pub fn log_depth_image(
 /// let camera = Camera::new((800, 600), 60.0, 0.1, 100.0);
 /// log_pinhole_depth(&rec, &camera, cam_position, cam_orientation, cam_transform).unwrap();
 /// ```
-
 pub fn log_pinhole_depth(
     rec: &rerun::RecordingStream,
     cam: &Camera,
