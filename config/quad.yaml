@@ -134,7 +134,7 @@ planner_schedule:
       segment_times: [5.0, 5.0, 5.0, 5.0] # Time to reach each waypoint (s)
       polynomial_order: 9 # Order of the polynomial to be used in computing trajectory
       minimize_derivative: 3 # Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
-      smooth_upto: 4 # Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+      smooth_upto: 4 # Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
       max_velocity: 4.0 # Maximum velocity constraint. Set to 0.0 to disregard these constraints. Please set reasonable values for this as it influences solver convergence or failure.
       max_acceleration: 2.0 # Maximum acceleration constraint. Set to 0.0 to disregard these constraints. Please set reasonable values for this as it influences solver convergence or failure.
       dt: 0.1 # Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.

@@ -1729,7 +1729,7 @@ pub struct QPpolyTrajPlanner {
     pub polyorder: usize,
     // Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub min_deriv: usize,
-    // Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    // Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub smooth_upto: usize,
     // Vector of time values for each segment, which tells the planner how much time each segment should take to complete. Expressed in seconds.
     pub segment_times: Vec<f32>,
@@ -1797,6 +1797,12 @@ impl QPpolyTrajPlanner {
         }
         if waypoints.len() != segment_times.len() + 1 || waypoints[0].len() != 4 {
             return Err(SimulationError::OtherError("Number of segment times must be one less than number of waypoints, and waypoints must contain x, y, z, yaw values".to_string()));
+        }
+        if smooth_upto > polyorder {
+            return Err(SimulationError::OtherError(format!(
+                "smooth_upto ({}) cannot be greather than polynomial order({})",
+                smooth_upto, polyorder
+            )));
         }
         let mut planner = Self {
             coeff: DMatrix::zeros(segment_times.len() * polyorder, 4),
