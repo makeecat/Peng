@@ -2038,7 +2038,7 @@ impl QPpolyTrajPlanner {
         // 2 position constraints + 4 derivative constraints (upto snap) for each intermediate waypoint = 6*num__intermediate_waypoints. This is basically 6*(num_segments+1)-2.
         let num_constraints = (2 + self.smooth_upto) * (num_segments + 1) - 2;
 
-        // Initialize the equality matrix a and the vector b. a*x = b, where x is the vector of coeffiecients we want to compute.
+        // Initialize the equality matrix a and the vector b. a*x = b, where x is the vector of coefficients we want to compute.
 
         let mut a: DMatrix<f64> = DMatrix::zeros(num_constraints, num_coeff);
         let mut b: DVector<f64> = DVector::zeros(num_constraints);
@@ -2098,13 +2098,13 @@ impl QPpolyTrajPlanner {
                         let segment_next = self.basis(0.0, 0);
                         let prev_col_offset = (i - 1) * self.polyorder;
 
-                        // Offset the col index to i-1 to assign it to the previous segment's coefficeints
+                        // Offset the col index to i-1 to assign it to the previous segment's coefficients
                         a.row_mut(row_index)
                             .columns_mut(prev_col_offset, self.polyorder)
                             .copy_from(&segment_prev.transpose());
                         b[row_index] = self.waypoints[i][dimension] as f64;
                         row_index += 1;
-                        // Offset the col index to i to assign it to this segment's coefficeints
+                        // Offset the col index to i to assign it to this segment's coefficients
                         a.row_mut(row_index)
                             .columns_mut(col_offset, self.polyorder)
                             .copy_from(&segment_next.transpose());
