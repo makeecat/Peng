@@ -1800,7 +1800,7 @@ impl QPpolyTrajPlanner {
         }
         if smooth_upto > polyorder {
             return Err(SimulationError::OtherError(format!(
-                "smooth_upto ({}) cannot be greather than polynomial order({})",
+                "smooth_upto ({}) cannot be greater than polynomial order({})",
                 smooth_upto, polyorder
             )));
         }
