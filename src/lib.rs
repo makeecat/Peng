@@ -1709,14 +1709,18 @@ impl Planner for MinimumSnapWaypointPlanner {
 /// # Example
 /// ```
 /// use peng_quad::QPpolyTrajPlanner;
-/// use nalgebra::DVector;
-/// let planner = QPpolyTrajPlanner::new(
-///     vec![Vector3::new(0.0, 0.0, 0.0), Vector3::new(1.0, 0.0, 0.0)],
-///     vec![0.0, 0.0],
-///     vec![1.0],
-///     0.0,
-/// );
-///
+/// use nalgebra::Vector3;
+/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0,0.0,1.0,0.0], vec![1.0,0.0,1.0,0.0]];
+/// let segment_times = vec![6.0];
+/// let min_deriv = 3;
+/// let polyorder = 9;
+/// let smooth_upto = 4;
+/// let max_velocity = 4.0;
+/// let max_acceleration = 3.0;
+/// let dt = 0.1;
+/// let start_time = 0.0;
+/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
+/// ```
 use nalgebra::{DMatrix, DVector};
 pub struct QPpolyTrajPlanner {
     // Matrix of coefficients for each segment and each dimension, organized as nrows: polyorder*segment_times.len(), ncols: 4 (for x, y, z, yaw)
@@ -1768,7 +1772,7 @@ pub struct QPpolyTrajPlanner {
 /// let max_acceleration = 3.0;
 /// let dt = 0.1;
 /// let start_time = 0.0;
-/// let mut qp_planner = QPpolyTraj::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
+/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
 /// ```
 use osqp::{CscMatrix, Problem, Settings};
 use std::ops::AddAssign;
@@ -2202,9 +2206,7 @@ impl QPpolyTrajPlanner {
         Generate the basis vector
     */
     fn basis(&self, time: f32, derivative: usize) -> DVector<f64> {
-        if derivative > 4 {
-            panic!("Derivative order greater than 4 is not supported");
-        }
+        assert!(derivative <= 4, "Derivative order must be less than 4");
         let time_f64 = time as f64;
         let t: Vec<f64> = (0..self.polyorder)
             .map(|i| time_f64.powi(i as i32))
