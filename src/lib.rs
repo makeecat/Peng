@@ -1726,25 +1726,25 @@ impl Planner for MinimumSnapWaypointPlanner {
 /// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
 /// ```
 pub struct QPpolyTrajPlanner {
-    // Matrix of coefficients for each segment and each dimension, organized as nrows: polyorder*segment_times.len(), ncols: 4 (for x, y, z, yaw)
+    /// Matrix of coefficients for each segment and each dimension, organized as nrows: polyorder*segment_times.len(), ncols: 4 (for x, y, z, yaw)
     pub coeff: DMatrix<f64>,
-    // Order of the polynomial to be used in computing trajectory
+    /// Order of the polynomial to be used in computing trajectory
     pub polyorder: usize,
-    // Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    /// Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub min_deriv: usize,
-    // Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    /// Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
     pub smooth_upto: usize,
-    // Vector of time values for each segment, which tells the planner how much time each segment should take to complete. Expressed in seconds.
+    /// Vector of time values for each segment, which tells the planner how much time each segment should take to complete. Expressed in seconds.
     pub segment_times: Vec<f32>,
-    // Waypoints for each segment. Note that there should be segment_times.len() + 1 values for waypoints, with the position of the quadrotor being the very first waypoint.
+    /// Waypoints for each segment. Note that there should be segment_times.len() + 1 values for waypoints, with the position of the quadrotor being the very first waypoint.
     pub waypoints: Vec<Vec<f32>>,
-    // Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+    /// Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
     pub max_velocity: f32,
-    // Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+    /// Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
     pub max_acceleration: f32,
-    // Time at which the simulation starts. This value has no bearing to QPpolyTraj itself, but is used during simulation since we use relative time internally when computing values.
+    /// Time at which the simulation starts. This value has no bearing to QPpolyTraj itself, but is used during simulation since we use relative time internally when computing values.
     pub start_time: f32,
-    // Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
+    /// Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
     pub dt: f32,
 }
 
