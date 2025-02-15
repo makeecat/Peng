@@ -45,10 +45,14 @@
 use rand::SeedableRng;
 use rayon::prelude::*;
 pub mod config;
-use nalgebra::{Matrix3, Quaternion, Rotation3, SMatrix, UnitQuaternion, Vector3};
+use nalgebra::{
+    DMatrix, DVector, Matrix3, Quaternion, Rotation3, SMatrix, UnitQuaternion, Vector3,
+};
+use osqp::{CscMatrix, Problem, Settings};
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Distribution, Normal};
 use std::f32::consts::PI;
+use std::ops::AddAssign;
 #[derive(thiserror::Error, Debug)]
 /// Represents errors that can occur during simulation
 /// # Example
@@ -1721,7 +1725,6 @@ impl Planner for MinimumSnapWaypointPlanner {
 /// let start_time = 0.0;
 /// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
 /// ```
-use nalgebra::{DMatrix, DVector};
 pub struct QPpolyTrajPlanner {
     // Matrix of coefficients for each segment and each dimension, organized as nrows: polyorder*segment_times.len(), ncols: 4 (for x, y, z, yaw)
     pub coeff: DMatrix<f64>,
@@ -1744,38 +1747,7 @@ pub struct QPpolyTrajPlanner {
     // Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
     pub dt: f32,
 }
-/// Generate a new quadratic polynomial based waypoint planner
-/// # Arguments
-/// * `waypoints` - List of waypoints (x, y, z, yaw)
-/// * `segment_times` - List of segment times to reach each waypoint
-/// * `polyorder` - Order of the polynomial to be used in computing trajectory
-/// * `min_deriv` - Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
-/// * `smooth_upto` - Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
-/// * `max_velocity` - Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
-/// * `max_acceleration` - Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
-/// * `start_time` - Start time of the trajectory
-/// * `dt` - Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
-/// # Returns
-/// * A new quadratic polynomial based waypoint planner
-/// # Errors
-/// * Returns an error if the number of waypoints, yaws, and segment times do not match
-/// # Example
-/// ```
-/// use peng_quad::QPpolyTrajPlanner;
-/// use nalgebra::{DMatrix, DVector, Vector3};
-/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.5, 1.5707963267948966], vec![-1.0, 1.0, 1.75, 3.141592653589793], vec![0.0, -1.0, 1.0, -1.5707963267948966], vec![0.0, 0.0, 0.5, 0.0]];
-/// let segment_times = vec![5.0, 5.0, 5.0, 5.0];
-/// let polyorder = 9;
-/// let min_deriv = 3;
-/// let smooth_upto = 4;
-/// let max_velocity = 4.0;
-/// let max_acceleration = 2.0;
-/// let start_time = 0.0;
-/// let dt = 0.1;
-/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt).unwrap();
-/// ```
-use osqp::{CscMatrix, Problem, Settings};
-use std::ops::AddAssign;
+
 impl QPpolyTrajPlanner {
     /// Generate a new QPpolyTraj planner
     /// # Arguments
@@ -1853,7 +1825,6 @@ impl QPpolyTrajPlanner {
     /// * `segment` - The segment index for which to evaluate the polynomial
     /// # Returns
     /// * A tuple containing the position, velocity, yaw, and yaw_rate at time `t` in segment `segment`
-    /// ```
     pub fn evaluate_polynomial(
         &self,
         t: f32,
@@ -1891,7 +1862,6 @@ impl QPpolyTrajPlanner {
     /// The coefficients will be arranged as (poly_order*num_segments, num_dims)
     /// # Errors
     /// * `SimulationError::OSQPError` - Failed to set up or solve OSQP problem
-    /// ```
     fn compute_coefficients(&mut self) -> Result<(), SimulationError> {
         let settings: Settings = Settings::default()
             .max_iter(10000000)
