@@ -2147,6 +2147,25 @@ impl QPpolyTrajPlanner {
         (a, b)
     }
 
+    fn compute_num_constraints(&self) -> usize {
+        // Skip if no inequality constraints
+        if self.max_velocity == 0.0 || self.max_acceleration == 0.0 {
+            return 0;
+        }
+        // For each segment, compute number of timesteps
+        let total_constraints: usize = self
+            .segment_times
+            .iter()
+            .map(|&segment_time| {
+                // Calculate number of steps, excluding the end point
+                let num_timesteps = (segment_time / self.dt).floor() as usize;
+                // 2 constraints (velocity and acceleration) per timestep
+                num_timesteps * 2
+            })
+            .sum();
+        total_constraints
+    }
+
     /*
         Generate inequality constrain for a single dimension. This works by sampling the derivatives using the basis vector across time steps and
         enforcing velocity and acceleration constraints for each of those basis vectors.
@@ -2155,12 +2174,7 @@ impl QPpolyTrajPlanner {
         let num_segments = self.segment_times.len();
         let coeff_num = self.polyorder * num_segments;
 
-        let mut num_constraints = 0; // Precompute the number of constraints to determine matrix sizes. This value might be an overestimation.
-
-        for &segment_time in &self.segment_times {
-            let steps = (segment_time / self.dt).ceil() as usize; // Number of time steps for this segment
-            num_constraints += (steps + 1) * 2; // For both velocity and acceleration constraints
-        }
+        let num_constraints = self.compute_num_constraints();
 
         // Initialize the inequality matrix c, along with the vectors d and f, representing the inequality d <= c*x <= f, where x is the vector of coefficients.
 
@@ -2198,13 +2212,6 @@ impl QPpolyTrajPlanner {
                 t += self.dt; // Update time step to compute basis vector at the next step.
             }
         }
-        // Resize the matrices using the number of populated rows. This ensures that only the populated rows are returned.
-        // NOTE: This is a roundabout method and should be replaced. Ideally, we should be able to compute the exact number of constraints for any case, to avoid dynamic resizing.
-        // This is done so that the inequality matrices don't contain zeroes for all rows, else the solver might fail or behave unexpectedly.
-        // row_index is guaranteed to be <= num_constraints.
-        let c = c.resize_vertically(row_index, 0.0);
-        let d = d.resize_vertically(row_index, 0.0);
-        let f = f.resize_vertically(row_index, 0.0);
         (c, d, f)
     }
 
