@@ -29,7 +29,8 @@ Peng is a minimal quadrotor autonomy framework written in Rust that provides rea
   - Lissajous curve planner
   - Circular trajectory planner
   - Obstacle avoidance planner
-  - Waypoint navigation planner
+  - Minimum snap waypoint navigation planner
+  - Quadratic Polynomial waypoint navigation planner
   - Landing planner
 - 📊 **Visualization & Debug**
   - Real-time 3D visualization via rerun.io
