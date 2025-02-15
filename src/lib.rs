@@ -1515,7 +1515,7 @@ impl MinimumSnapWaypointPlanner {
         if waypoints.len() != segment_times.len() + 1 || waypoints.len() != yaws.len() {
             return Err(SimulationError::OtherError("Number of segment times must be one less than number of waypoints, and yaws must match waypoints".to_string()));
         }
-        let mut planner: MinimumSnapWaypointPlanner = Self {
+        let mut planner = Self {
             waypoints,
             yaws,
             times: segment_times,
@@ -1763,21 +1763,48 @@ pub struct QPpolyTrajPlanner {
 /// ```
 /// use peng_quad::QPpolyTrajPlanner;
 /// use nalgebra::{DMatrix, DVector, Vector3};
-/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0,0.0,1.0,0.0], vec![1.0,0.0,1.0,0.0]];
-/// let segment_times = vec![6.0];
-/// let min_deriv = 3;
+/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.5, 1.5707963267948966], vec![-1.0, 1.0, 1.75, 3.141592653589793], vec![0.0, -1.0, 1.0, -1.5707963267948966], vec![0.0, 0.0, 0.5, 0.0]];
+/// let segment_times = vec![5.0, 5.0, 5.0, 5.0];
 /// let polyorder = 9;
+/// let min_deriv = 3;
 /// let smooth_upto = 4;
 /// let max_velocity = 4.0;
-/// let max_acceleration = 3.0;
-/// let dt = 0.1;
+/// let max_acceleration = 2.0;
 /// let start_time = 0.0;
-/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
+/// let dt = 0.1;
+/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt).unwrap();
 /// ```
 use osqp::{CscMatrix, Problem, Settings};
 use std::ops::AddAssign;
 impl QPpolyTrajPlanner {
-    /* Create a new instance of the QPpolyTraj object */
+    /// Generate a new QPpolyTraj planner
+    /// # Arguments
+    /// * `waypoints` - The waypoints for the trajectory
+    /// * `segment_times` - The times for each segment of the trajectory
+    /// * `polyorder` - The order of the polynomial
+    /// * `min_deriv` - The minimum derivative to be considered
+    /// * `smooth_upto` - The maximum derivative to be considered
+    /// * `max_velocity` - The maximum velocity
+    /// * `max_acceleration` - The maximum acceleration
+    /// * `start_time` - The start time of the trajectory
+    /// * `dt` - The time step for the trajectory
+    /// # Errors
+    /// * Returns an error if the specified waypoints, segment times, smooth_upto or polyorder is invalid
+    /// # Examples
+    /// ```
+    /// use peng_quad::QPpolyTrajPlanner;
+    /// use nalgebra::{DMatrix, DVector, Vector3};
+    /// let waypoints: Vec<Vec<f32>> = vec![vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.5, 1.5707963267948966], vec![-1.0, 1.0, 1.75, 3.141592653589793], vec![0.0, -1.0, 1.0, -1.5707963267948966], vec![0.0, 0.0, 0.5, 0.0]];
+    /// let segment_times = vec![5.0, 5.0, 5.0, 5.0];
+    /// let polyorder = 9;
+    /// let min_deriv = 3;
+    /// let smooth_upto = 4;
+    /// let max_velocity = 4.0;
+    /// let max_acceleration = 2.0;
+    /// let start_time = 0.0;
+    /// let dt = 0.1;
+    /// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt).unwrap();
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         waypoints: Vec<Vec<f32>>,
@@ -1820,7 +1847,13 @@ impl QPpolyTrajPlanner {
         Ok(planner)
     }
 
-    /* Compute the position, velocity, yaw, and yaw_rate for a given time t in given segment */
+    /// Compute the position, velocity, yaw, and yaw_rate for a given time t in given segment
+    /// # Arguments
+    /// * `t` - The time at which to evaluate the polynomial
+    /// * `segment` - The segment index for which to evaluate the polynomial
+    /// # Returns
+    /// * A tuple containing the position, velocity, yaw, and yaw_rate at time `t` in segment `segment`
+    /// ```
     pub fn evaluate_polynomial(
         &self,
         t: f32,
@@ -1854,7 +1887,11 @@ impl QPpolyTrajPlanner {
         (position, velocity, yaw, yaw_rate)
     }
 
-    /* Solve the Quadratic Programming problem and compute the coefficients for the whole trajectory. The coefficients will be arranged as (poly_order*num_segments, num_dims)*/
+    /// Solve the Quadratic Programming problem and compute the coefficients for the whole trajectory.
+    /// The coefficients will be arranged as (poly_order*num_segments, num_dims)
+    /// # Errors
+    /// * `SimulationError::OSQPError` - Failed to set up or solve OSQP problem
+    /// ```
     fn compute_coefficients(&mut self) -> Result<(), SimulationError> {
         let settings: Settings = Settings::default()
             .max_iter(10000000)
@@ -1890,7 +1927,9 @@ impl QPpolyTrajPlanner {
         Ok(())
     }
 
-    /* Combine the objective function, the equality and inequality constraints into a format for OSQP. */
+    /// Combine the objective function, the equality and inequality constraints into a format for OSQP
+    /// # Returns
+    /// * A tuple containing the Q matrix, the linear term vector, the A matrix, the lower bound vector, and the upper bound vector
     fn prepare_qp_problem(
         &self,
     ) -> (
@@ -1993,7 +2032,11 @@ impl QPpolyTrajPlanner {
         (q_csc, DVector::zeros(num_vars), a_csc, l, u)
     }
 
-    /* Generate the Q Cost Matrix and A Matrix in the required Csc sparse matrix form for osqp by converting the dense DMatrix. */
+    /// Generate the Q Cost Matrix and A Matrix in the required Csc sparse matrix form for osqp by converting the dense DMatrix.
+    /// # Arguments
+    /// * `a` - The dense matrix to be converted.
+    /// # Returns
+    /// * The sparse matrix in CSC format.
     fn convert_dense_to_sparse(&self, a: &DMatrix<f64>) -> CscMatrix {
         let (rows, cols) = a.shape();
 
@@ -2005,7 +2048,9 @@ impl QPpolyTrajPlanner {
         CscMatrix::from_column_iter(rows, cols, column_major_iter)
     }
 
-    /* Generate the entire objective function for the entire trajectory for a single dimension */
+    /// Generate the entire objective function for the entire trajectory for a single dimension
+    /// # Returns
+    /// * The objective function matrix.
     fn generate_obj_function(&self) -> DMatrix<f64> {
         let num_segments = self.segment_times.len();
         let coeff_num = self.polyorder * num_segments;
@@ -2024,7 +2069,12 @@ impl QPpolyTrajPlanner {
         q_total
     }
 
-    /* Generate the Q matrix for a single segment of a single dimension */
+    /// Generate the Q matrix for a single segment of a single dimension
+    /// # Arguments
+    /// * `min_deriv` - The minimum derivative order to consider.
+    /// * `time` - The time at which to evaluate the basis functions.
+    /// # Returns
+    /// * The Q matrix for the segment.
     fn generate_q(&self, min_deriv: usize, time: f32) -> DMatrix<f64> {
         let mut q: DMatrix<f64> = DMatrix::zeros(self.polyorder, self.polyorder);
         let poly = self.basis(time, min_deriv);
@@ -2038,7 +2088,11 @@ impl QPpolyTrajPlanner {
         q
     }
 
-    /* Generate the equality matrix for a single dimension */
+    /// Generate the equality matrix for a single dimension
+    /// # Arguments
+    /// * `dimension` - The dimension for which to generate the equality matrix.
+    /// # Returns
+    /// * The equality matrix and the vector of constraints.
     fn generate_equality_constraints(&self, dimension: usize) -> (DMatrix<f64>, DVector<f64>) {
         let num_segments = self.segment_times.len();
         let num_coeff = self.polyorder * num_segments;
@@ -2146,7 +2200,9 @@ impl QPpolyTrajPlanner {
 
         (a, b)
     }
-
+    /// Compute the number of constraints
+    /// # Returns
+    /// * The total number of constraints.
     fn compute_num_constraints(&self) -> usize {
         // Skip if no inequality constraints
         if self.max_velocity == 0.0 || self.max_acceleration == 0.0 {
@@ -2166,10 +2222,10 @@ impl QPpolyTrajPlanner {
         total_constraints
     }
 
-    /*
-        Generate inequality constrain for a single dimension. This works by sampling the derivatives using the basis vector across time steps and
-        enforcing velocity and acceleration constraints for each of those basis vectors.
-    */
+    /// Generate inequality constrain for a single dimension. This works by sampling the derivatives using the basis vector across time steps and
+    /// enforcing velocity and acceleration constraints for each of those basis vectors.
+    /// # Returns
+    /// A tuple containing the inequality matrix `c`, the lower bound vector `d`, and the upper bound vector `f`.
     fn generate_inequality_constraints(&self) -> (DMatrix<f64>, DVector<f64>, DVector<f64>) {
         let num_segments = self.segment_times.len();
         let coeff_num = self.polyorder * num_segments;
@@ -2215,9 +2271,12 @@ impl QPpolyTrajPlanner {
         (c, d, f)
     }
 
-    /*
-        Generate the basis vector
-    */
+    /// Generate the basis vector of the given derivative order at the given time.
+    /// # Arguments
+    /// * `time` - The time at which to evaluate the basis vector.
+    /// * `derivative` - The derivative order of the basis vector.
+    /// # Returns
+    /// * The basis vector of the given derivative order at the given time.
     fn basis(&self, time: f32, derivative: usize) -> DVector<f64> {
         assert!(derivative <= 4, "Derivative order must be less than 4");
         let time_f64 = time as f64;
