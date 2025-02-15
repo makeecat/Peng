@@ -12,7 +12,7 @@ simulation:
   control_frequency: 200 # Frequency of control loop execution (Hz)
   simulation_frequency: 1000 # Frequency of physics simulation updates (Hz)
   log_frequency: 20 # Frequency of data logging (Hz)
-  duration: 70.0 # Total duration of the simulation (seconds)
+  duration: 90.0 # Total duration of the simulation (seconds)
 
 quadrotor:
   mass: 1.3 # Mass of the quadrotor (kg)
@@ -122,8 +122,25 @@ planner_schedule:
       yaws: [1.5707963267948966, 3.141592653589793, -1.5707963267948966, 0.0] # Yaw angles at waypoints (rad)
       segment_times: [5.0, 5.0, 5.0, 5.0] # Time to reach each waypoint (s)
 
-  # Landing trajectory
+  # Quadratic Polynomial trajectory
   - step: 65000
+    planner_type: QPpolyTraj
+    params:
+      waypoints: # List of waypoints [x, y, z, yaw] in (m) and (rad) respectively
+        - [1.0, 1.0, 1.5, 1.5707963267948966]
+        - [-1.0, 1.0, 1.75, 3.141592653589793]
+        - [0.0, -1.0, 1.0, -1.5707963267948966]
+        - [0.0, 0.0, 0.5, 0.0]
+      segment_times: [5.0, 5.0, 5.0, 5.0] # Time to reach each waypoint (s)
+      polynomial_order: 9 # Order of the polynomial to be used in computing trajectory
+      minimize_derivative: 3 # Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+      smooth_upto: 4 # Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+      max_velocity: 4.0 # Maximum velocity constraint. Set to 0.0 to disregard these constraints. Please set reasonable values for this as it influences solver convergence or failure.
+      max_acceleration: 2.0 # Maximum acceleration constraint. Set to 0.0 to disregard these constraints. Please set reasonable values for this as it influences solver convergence or failure.
+      dt: 0.1 # Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
+
+  # Landing trajectory
+  - step: 85000
     planner_type: Landing
     params:
       duration: 5.0 # Duration of the landing maneuver (s)

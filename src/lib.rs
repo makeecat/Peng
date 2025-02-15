@@ -69,6 +69,9 @@ pub enum SimulationError {
     /// Error related to linear algebra operations
     #[error("Nalgebra error: {0}")]
     NalgebraError(String),
+    /// Error related to the OSQP solver
+    #[error("OSQP error: {0}")]
+    OSQPError(String),
     /// Error related to normal distribution calculations
     #[error("Normal error: {0}")]
     NormalError(#[from] rand_distr::NormalError),
@@ -710,6 +713,8 @@ pub enum PlannerType {
     ObstacleAvoidance(ObstacleAvoidancePlanner),
     /// Minimum snap waypoint planner
     MinimumSnapWaypoint(MinimumSnapWaypointPlanner),
+    /// Quadratic Polynomial based waypoint planner
+    QPpolyTraj(QPpolyTrajPlanner),
 }
 /// Implementation of the planner type
 impl PlannerType {
@@ -746,6 +751,7 @@ impl PlannerType {
             PlannerType::Landing(p) => p.plan(current_position, current_velocity, time),
             PlannerType::ObstacleAvoidance(p) => p.plan(current_position, current_velocity, time),
             PlannerType::MinimumSnapWaypoint(p) => p.plan(current_position, current_velocity, time),
+            PlannerType::QPpolyTraj(p) => p.plan(current_position, current_velocity, time),
         }
     }
     /// Checks if the current trajectory is finished
@@ -779,6 +785,7 @@ impl PlannerType {
             PlannerType::Landing(p) => p.is_finished(current_position, time),
             PlannerType::ObstacleAvoidance(p) => p.is_finished(current_position, time),
             PlannerType::MinimumSnapWaypoint(p) => p.is_finished(current_position, time),
+            PlannerType::QPpolyTraj(p) => p.is_finished(current_position, time),
         }
     }
 }
@@ -1697,6 +1704,647 @@ impl Planner for MinimumSnapWaypointPlanner {
             && (current_position - last_waypoint).norm() < 0.1)
     }
 }
+
+/// Waypoint planner that generates a quadratic polynomial trajectory between waypoints
+/// # Example
+/// ```
+/// use peng_quad::QPpolyTrajPlanner;
+/// use nalgebra::Vector3;
+/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0,0.0,1.0,0.0], vec![1.0,0.0,1.0,0.0]];
+/// let segment_times = vec![6.0];
+/// let min_deriv = 3;
+/// let polyorder = 9;
+/// let smooth_upto = 4;
+/// let max_velocity = 4.0;
+/// let max_acceleration = 3.0;
+/// let dt = 0.1;
+/// let start_time = 0.0;
+/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt);
+/// ```
+use nalgebra::{DMatrix, DVector};
+pub struct QPpolyTrajPlanner {
+    // Matrix of coefficients for each segment and each dimension, organized as nrows: polyorder*segment_times.len(), ncols: 4 (for x, y, z, yaw)
+    pub coeff: DMatrix<f64>,
+    // Order of the polynomial to be used in computing trajectory
+    pub polyorder: usize,
+    // Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    pub min_deriv: usize,
+    // Ensure continuity upto which derivative. NOTE: This MUST be <= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+    pub smooth_upto: usize,
+    // Vector of time values for each segment, which tells the planner how much time each segment should take to complete. Expressed in seconds.
+    pub segment_times: Vec<f32>,
+    // Waypoints for each segment. Note that there should be segment_times.len() + 1 values for waypoints, with the position of the quadrotor being the very first waypoint.
+    pub waypoints: Vec<Vec<f32>>,
+    // Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+    pub max_velocity: f32,
+    // Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+    pub max_acceleration: f32,
+    // Time at which the simulation starts. This value has no bearing to QPpolyTraj itself, but is used during simulation since we use relative time internally when computing values.
+    pub start_time: f32,
+    // Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
+    pub dt: f32,
+}
+/// Generate a new quadratic polynomial based waypoint planner
+/// # Arguments
+/// * `waypoints` - List of waypoints (x, y, z, yaw)
+/// * `segment_times` - List of segment times to reach each waypoint
+/// * `polyorder` - Order of the polynomial to be used in computing trajectory
+/// * `min_deriv` - Minimize which derivative in the QP problem (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+/// * `smooth_upto` - Ensure continuity upto which derivative. NOTE: This MUST be >= polynomial_order (1->Velocity, 2->Acceleration, 3->Snap, 4->Jerk. Please note that derivative value greater than 4 is not supported)
+/// * `max_velocity` - Maximum velocity constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+/// * `max_acceleration` - Maximum acceleration constraint. Set to 0.0 to disregard inequality constraints. Please set reasonable values for this as it influences solver convergence or failure.
+/// * `start_time` - Start time of the trajectory
+/// * `dt` - Step time used while generating inequality constraints. Has no bearing if max_velocity or max_acceleration is set to 0.0. Please set reasonable value for this as it has a huge impact on OSQP solve time.
+/// # Returns
+/// * A new quadratic polynomial based waypoint planner
+/// # Errors
+/// * Returns an error if the number of waypoints, yaws, and segment times do not match
+/// # Example
+/// ```
+/// use peng_quad::QPpolyTrajPlanner;
+/// use nalgebra::{DMatrix, DVector, Vector3};
+/// let waypoints: Vec<Vec<f32>> = vec![vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.5, 1.5707963267948966], vec![-1.0, 1.0, 1.75, 3.141592653589793], vec![0.0, -1.0, 1.0, -1.5707963267948966], vec![0.0, 0.0, 0.5, 0.0]];
+/// let segment_times = vec![5.0, 5.0, 5.0, 5.0];
+/// let polyorder = 9;
+/// let min_deriv = 3;
+/// let smooth_upto = 4;
+/// let max_velocity = 4.0;
+/// let max_acceleration = 2.0;
+/// let start_time = 0.0;
+/// let dt = 0.1;
+/// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt).unwrap();
+/// ```
+use osqp::{CscMatrix, Problem, Settings};
+use std::ops::AddAssign;
+impl QPpolyTrajPlanner {
+    /// Generate a new QPpolyTraj planner
+    /// # Arguments
+    /// * `waypoints` - The waypoints for the trajectory
+    /// * `segment_times` - The times for each segment of the trajectory
+    /// * `polyorder` - The order of the polynomial
+    /// * `min_deriv` - The minimum derivative to be considered
+    /// * `smooth_upto` - The maximum derivative to be considered
+    /// * `max_velocity` - The maximum velocity
+    /// * `max_acceleration` - The maximum acceleration
+    /// * `start_time` - The start time of the trajectory
+    /// * `dt` - The time step for the trajectory
+    /// # Errors
+    /// * Returns an error if the specified waypoints, segment times, smooth_upto or polyorder is invalid
+    /// # Examples
+    /// ```
+    /// use peng_quad::QPpolyTrajPlanner;
+    /// use nalgebra::{DMatrix, DVector, Vector3};
+    /// let waypoints: Vec<Vec<f32>> = vec![vec![0.0, 0.0, 0.0, 0.0], vec![1.0, 1.0, 1.5, 1.5707963267948966], vec![-1.0, 1.0, 1.75, 3.141592653589793], vec![0.0, -1.0, 1.0, -1.5707963267948966], vec![0.0, 0.0, 0.5, 0.0]];
+    /// let segment_times = vec![5.0, 5.0, 5.0, 5.0];
+    /// let polyorder = 9;
+    /// let min_deriv = 3;
+    /// let smooth_upto = 4;
+    /// let max_velocity = 4.0;
+    /// let max_acceleration = 2.0;
+    /// let start_time = 0.0;
+    /// let dt = 0.1;
+    /// let mut qp_planner = QPpolyTrajPlanner::new(waypoints,segment_times,polyorder, min_deriv, smooth_upto,max_velocity,max_acceleration, start_time, dt).unwrap();
+    /// ```
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        waypoints: Vec<Vec<f32>>,
+        segment_times: Vec<f32>,
+        polyorder: usize,
+        min_deriv: usize,
+        smooth_upto: usize,
+        max_velocity: f32,
+        max_acceleration: f32,
+        start_time: f32,
+        dt: f32,
+    ) -> Result<Self, SimulationError> {
+        if waypoints.len() < 2 {
+            return Err(SimulationError::OtherError(
+                "At least two waypoints are required".to_string(),
+            ));
+        }
+        if waypoints.len() != segment_times.len() + 1 || waypoints[0].len() != 4 {
+            return Err(SimulationError::OtherError("Number of segment times must be one less than number of waypoints, and waypoints must contain x, y, z, yaw values".to_string()));
+        }
+        if smooth_upto > polyorder {
+            return Err(SimulationError::OtherError(format!(
+                "smooth_upto ({}) cannot be greater than polynomial order({})",
+                smooth_upto, polyorder
+            )));
+        }
+        let mut planner = Self {
+            coeff: DMatrix::zeros(segment_times.len() * polyorder, 4),
+            polyorder,
+            min_deriv,
+            smooth_upto,
+            segment_times,
+            waypoints,
+            max_velocity,
+            max_acceleration,
+            start_time,
+            dt,
+        };
+        planner.compute_coefficients()?;
+        Ok(planner)
+    }
+
+    /// Compute the position, velocity, yaw, and yaw_rate for a given time t in given segment
+    /// # Arguments
+    /// * `t` - The time at which to evaluate the polynomial
+    /// * `segment` - The segment index for which to evaluate the polynomial
+    /// # Returns
+    /// * A tuple containing the position, velocity, yaw, and yaw_rate at time `t` in segment `segment`
+    /// ```
+    pub fn evaluate_polynomial(
+        &self,
+        t: f32,
+        segment: usize,
+    ) -> (Vector3<f32>, Vector3<f32>, f32, f32) {
+        let mut position = Vector3::zeros();
+        let mut velocity = Vector3::zeros();
+
+        let pos_basis = self.basis(t, 0);
+        let vel_basis = self.basis(t, 1);
+
+        let row_offset = self.polyorder * segment;
+
+        let coeff_segment = &self.coeff.view((row_offset, 0), (self.polyorder, 4));
+
+        let pose_4d = pos_basis.transpose() * coeff_segment;
+        let vel_4d = vel_basis.transpose() * coeff_segment;
+
+        //Convert to f32. This is bad for performance but currently no other way as OSQP requires f64 and Peng utilizes f32.
+        let pose_4d_f32 = pose_4d.map(|x| x as f32);
+        let vel_4d_f32 = vel_4d.map(|x| x as f32);
+
+        // Extract the necessary values
+        for i in 0..3 {
+            position[i] = pose_4d_f32[(0, i)];
+            velocity[i] = vel_4d_f32[(0, i)];
+        }
+        let yaw = pose_4d_f32[(0, 3)];
+        let yaw_rate = vel_4d_f32[(0, 3)];
+
+        (position, velocity, yaw, yaw_rate)
+    }
+
+    /// Solve the Quadratic Programming problem and compute the coefficients for the whole trajectory.
+    /// The coefficients will be arranged as (poly_order*num_segments, num_dims)
+    /// # Errors
+    /// * `SimulationError::OSQPError` - Failed to set up or solve OSQP problem
+    /// ```
+    fn compute_coefficients(&mut self) -> Result<(), SimulationError> {
+        let settings: Settings = Settings::default()
+            .max_iter(10000000)
+            .eps_abs(1e-6)
+            .eps_rel(5e-6)
+            .verbose(false);
+
+        let (p, q, a, l, u) = self.prepare_qp_problem();
+
+        // Create an OSQP problem
+        let mut problem = Problem::new(p, q.as_slice(), a, l.as_slice(), u.as_slice(), &settings)
+            .map_err(|_| {
+            SimulationError::OSQPError("Failed to set up OSQP problem".to_string())
+        })?;
+
+        // Solve problem
+        let result = problem.solve();
+
+        // Obtain the solution coefficients
+        let coeff_vector = result
+            .x()
+            .map(|solution| DVector::from_iterator(solution.len(), solution.iter().cloned()))
+            .ok_or(SimulationError::OSQPError(
+                "Unable to solve OSQP problem".to_string(),
+            ))?;
+
+        self.coeff = DMatrix::from_column_slice(
+            self.segment_times.len() * self.polyorder,
+            4,
+            coeff_vector.as_slice(),
+        );
+
+        Ok(())
+    }
+
+    /// Combine the objective function, the equality and inequality constraints into a format for OSQP
+    /// # Returns
+    /// * A tuple containing the Q matrix, the linear term vector, the A matrix, the lower bound vector, and the upper bound vector
+    fn prepare_qp_problem(
+        &self,
+    ) -> (
+        CscMatrix,
+        DVector<f64>,
+        CscMatrix,
+        DVector<f64>,
+        DVector<f64>,
+    ) {
+        // 1. Generate the Q Matrix for x, y, z, yaw. Since the objective function is the same for all, we simply clone the first matrix instead of recomputing for each dim.
+        let num_dims = 4;
+        let num_vars_per_dim = self.polyorder * self.segment_times.len();
+        let num_vars = num_vars_per_dim * num_dims;
+
+        // Stack Q matrices into a block-diagonal matrix (joint optimization)
+        let q_x = self.generate_obj_function();
+        let mut q = DMatrix::zeros(num_vars, num_vars);
+
+        for dim in 0..num_dims {
+            let row_offset = dim * num_vars_per_dim;
+            let col_offset = dim * num_vars_per_dim;
+            q.view_mut((row_offset, col_offset), (q_x.nrows(), q_x.ncols()))
+                .copy_from(&q_x);
+        }
+
+        // 2. Generate the Equality constraints for x, y, z, yaw
+
+        // Construct a block diagonal A_eq matrix
+        let num_constraints_per_block = (2 + self.smooth_upto) * (self.segment_times.len() + 1) - 2;
+        let mut a_eq = DMatrix::zeros(num_constraints_per_block * num_dims, num_vars);
+        let mut b_eq = DVector::zeros(num_constraints_per_block * num_dims);
+
+        for dim in 0..num_dims {
+            let row_offset = dim * num_constraints_per_block;
+            let col_offset = dim * num_vars_per_dim;
+            let (small_a_eq, small_b_eq) = self.generate_equality_constraints(dim);
+            a_eq.view_mut(
+                (row_offset, col_offset),
+                (num_constraints_per_block, num_vars_per_dim),
+            )
+            .copy_from(&small_a_eq);
+            b_eq.rows_mut(row_offset, num_constraints_per_block)
+                .copy_from(&small_b_eq);
+        }
+
+        // 3. Generate the Inequality constraints, similar to how we generate the Q Matrix.
+        // If no inequality constraints, create empty matrices
+        let mut a_ineq: DMatrix<f64>;
+        let mut d: DVector<f64>;
+        let mut f: DVector<f64>;
+        if self.max_acceleration > 0.0 && self.max_velocity > 0.0 {
+            let (a_ineq_x, d_x, f_x) = self.generate_inequality_constraints();
+            a_ineq = DMatrix::zeros(a_ineq_x.nrows() * num_dims, num_vars);
+            d = DVector::zeros(d_x.len() * num_dims);
+            f = DVector::zeros(f_x.len() * num_dims);
+
+            for dim in 0..num_dims {
+                let row_offset = dim * a_ineq_x.nrows();
+                let col_offset = dim * num_vars_per_dim;
+                a_ineq
+                    .view_mut(
+                        (row_offset, col_offset),
+                        (a_ineq_x.nrows(), a_ineq_x.ncols()),
+                    )
+                    .copy_from(&a_ineq_x);
+                d.rows_mut(row_offset, d_x.len()).copy_from(&d_x);
+                f.rows_mut(row_offset, f_x.len()).copy_from(&f_x);
+            }
+        } else {
+            // If no inequality constraints, create empty matrices
+            a_ineq = DMatrix::zeros(0, num_vars);
+            d = DVector::zeros(0);
+            f = DVector::zeros(0);
+        }
+
+        // 4. Combine equality and optionally, inequality constraints
+        let total_constraints = a_eq.nrows() + a_ineq.nrows();
+        let mut a = DMatrix::zeros(total_constraints, num_vars);
+        a.view_mut((0, 0), (a_eq.nrows(), a_eq.ncols()))
+            .copy_from(&a_eq);
+
+        let mut l = DVector::zeros(total_constraints);
+        let mut u = DVector::zeros(total_constraints);
+
+        // Lower and upper bounds
+        l.rows_mut(0, b_eq.len()).copy_from(&b_eq);
+        u.rows_mut(0, b_eq.len()).copy_from(&b_eq); // Equality constraints: Enforcing l = u = b_eq is the same as A_eq*x = b_eq
+
+        if a_ineq.nrows() > 0 {
+            a.view_mut((a_eq.nrows(), 0), (a_ineq.nrows(), a_ineq.ncols()))
+                .copy_from(&a_ineq);
+            l.rows_mut(b_eq.len(), d.len()).copy_from(&d);
+            u.rows_mut(b_eq.len(), f.len()).copy_from(&f);
+        }
+
+        // 5. Convert matrices to CSC format for osqp.rs
+        let q_csc = self.convert_dense_to_sparse(&q).into_upper_tri();
+        let a_csc = self.convert_dense_to_sparse(&a);
+
+        (q_csc, DVector::zeros(num_vars), a_csc, l, u)
+    }
+
+    /// Generate the Q Cost Matrix and A Matrix in the required Csc sparse matrix form for osqp by converting the dense DMatrix.
+    /// # Arguments
+    /// * `a` - The dense matrix to be converted.
+    /// # Returns
+    /// * The sparse matrix in CSC format.
+    fn convert_dense_to_sparse(&self, a: &DMatrix<f64>) -> CscMatrix {
+        let (rows, cols) = a.shape();
+
+        let column_major_iter: Vec<f64> = a
+            .column_iter()
+            .flat_map(|col| col.iter().copied().collect::<Vec<f64>>())
+            .collect();
+
+        CscMatrix::from_column_iter(rows, cols, column_major_iter)
+    }
+
+    /// Generate the entire objective function for the entire trajectory for a single dimension
+    /// # Returns
+    /// * The objective function matrix.
+    fn generate_obj_function(&self) -> DMatrix<f64> {
+        let num_segments = self.segment_times.len();
+        let coeff_num = self.polyorder * num_segments;
+
+        let mut q_total: DMatrix<f64> = DMatrix::zeros(coeff_num, coeff_num);
+
+        for (i, &segment_time) in self.segment_times.iter().enumerate() {
+            let q_segment = self.generate_q(self.min_deriv, segment_time);
+            q_total
+                .view_mut(
+                    (i * self.polyorder, i * self.polyorder),
+                    (self.polyorder, self.polyorder),
+                )
+                .copy_from(&q_segment);
+        }
+        q_total
+    }
+
+    /// Generate the Q matrix for a single segment of a single dimension
+    /// # Arguments
+    /// * `min_deriv` - The minimum derivative order to consider.
+    /// * `time` - The time at which to evaluate the basis functions.
+    /// # Returns
+    /// * The Q matrix for the segment.
+    fn generate_q(&self, min_deriv: usize, time: f32) -> DMatrix<f64> {
+        let mut q: DMatrix<f64> = DMatrix::zeros(self.polyorder, self.polyorder);
+        let poly = self.basis(time, min_deriv);
+
+        for i in 0..self.polyorder {
+            for j in 0..self.polyorder {
+                let power_order = ((i + j) as f64 - (2 * min_deriv) as f64 + 1.0).max(1.0); // Avoid division by zero
+                q[(i, j)] = poly[i] * poly[j] * time as f64 / power_order;
+            }
+        }
+        q
+    }
+
+    /// Generate the equality matrix for a single dimension
+    /// # Arguments
+    /// * `dimension` - The dimension for which to generate the equality matrix.
+    /// # Returns
+    /// * The equality matrix and the vector of constraints.
+    fn generate_equality_constraints(&self, dimension: usize) -> (DMatrix<f64>, DVector<f64>) {
+        let num_segments = self.segment_times.len();
+        let num_coeff = self.polyorder * num_segments;
+
+        // 1 position constraint + 4 derivative constraints (upto snap) for each beginning and ending waypoint = 5*2 +
+        // 2 position constraints + 4 derivative constraints (upto snap) for each intermediate waypoint = 6*num__intermediate_waypoints. This is basically 6*(num_segments+1)-2.
+        let num_constraints = (2 + self.smooth_upto) * (num_segments + 1) - 2;
+
+        // Initialize the equality matrix a and the vector b. a*x = b, where x is the vector of coefficients we want to compute.
+
+        let mut a: DMatrix<f64> = DMatrix::zeros(num_constraints, num_coeff);
+        let mut b: DVector<f64> = DVector::zeros(num_constraints);
+
+        let mut row_index: usize = 0;
+
+        for i in 0..=num_segments {
+            let col_offset = i * self.polyorder;
+
+            match i {
+                // First part of the first waypoint of the trajectory. NOTE: The first position is assumed to be the position of the robot. Handles position[0] + derivatives = 0
+                // This results in 5 constraints (rows) added here.
+                0 => {
+                    let row = self.basis(0.0, 0);
+                    a.row_mut(row_index)
+                        .columns_mut(col_offset, self.polyorder)
+                        .copy_from(&row.transpose());
+                    b[row_index] = self.waypoints[i][dimension] as f64;
+                    row_index += 1;
+
+                    //All derivatives from velocity up until snap must be 0
+                    for j in 1..=self.smooth_upto {
+                        let row = self.basis(0.0, j);
+                        a.row_mut(row_index)
+                            .columns_mut(col_offset, self.polyorder)
+                            .copy_from(&row.transpose());
+                        b[row_index] = 0.0;
+                        row_index += 1;
+                    }
+                }
+                //Last part of the last waypoint of the trajectory. Handles position[n-1] + derivatives = 0. This results in 5 constraints (rows) added here.
+                n if n == num_segments => {
+                    let time = self.segment_times[num_segments - 1];
+                    let row = self.basis(time, 0);
+                    a.row_mut(row_index)
+                        .columns_mut(col_offset - self.polyorder, self.polyorder)
+                        .copy_from(&row.transpose());
+                    b[row_index] = self.waypoints[i][dimension] as f64;
+                    row_index += 1;
+
+                    //All derivatives from velocity up until snap must be 0
+                    for j in 1..=self.smooth_upto {
+                        let row = self.basis(time, j);
+                        a.row_mut(row_index)
+                            .columns_mut(col_offset - self.polyorder, self.polyorder)
+                            .copy_from(&row.transpose());
+                        b[row_index] = 0.0;
+                        row_index += 1;
+                    }
+                }
+                // Intermediate segments. Handles prev_segment_position[i-1] = waypoint[i] = curr_segment_position[i] + derivative[i-1] = derivative[i]
+                // This results in 6 constraints (rows) added here.
+                _ => {
+                    {
+                        // Position constraint. position at segment i-1 must be equal to position at i which is equal to waypoint[i]
+                        let segment_prev = self.basis(self.segment_times[i - 1], 0);
+                        let segment_next = self.basis(0.0, 0);
+                        let prev_col_offset = (i - 1) * self.polyorder;
+
+                        // Offset the col index to i-1 to assign it to the previous segment's coefficients
+                        a.row_mut(row_index)
+                            .columns_mut(prev_col_offset, self.polyorder)
+                            .copy_from(&segment_prev.transpose());
+                        b[row_index] = self.waypoints[i][dimension] as f64;
+                        row_index += 1;
+                        // Offset the col index to i to assign it to this segment's coefficients
+                        a.row_mut(row_index)
+                            .columns_mut(col_offset, self.polyorder)
+                            .copy_from(&segment_next.transpose());
+                        b[row_index] = self.waypoints[i][dimension] as f64;
+                        row_index += 1;
+
+                        // To ensure velocity upto snap continuity, we equate the derivatives of the previous segment with the derivatives of the next segment.
+                        // Since we don't care what the value of the derivatives are, we just formulate the constraint such that deriv[prev_segment] - deriv[next_segment] = 0.
+                        // We do this by placing the derivatives of the prev segment at those times in the same row, along with the negative of next segment's derivatives.
+
+                        for j in 1..=self.smooth_upto {
+                            let segment_prev = self.basis(self.segment_times[i - 1], j);
+                            let segment_next = self.basis(0.0, j);
+
+                            a.row_mut(row_index)
+                                .columns_mut(prev_col_offset, self.polyorder)
+                                .copy_from(&segment_prev.transpose());
+                            a.row_mut(row_index)
+                                .columns_mut(col_offset, self.polyorder)
+                                .add_assign(-segment_next.transpose());
+
+                            b[row_index] = 0.0;
+
+                            row_index += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        (a, b)
+    }
+    /// Compute the number of constraints
+    /// # Returns
+    /// * The total number of constraints.
+    fn compute_num_constraints(&self) -> usize {
+        // Skip if no inequality constraints
+        if self.max_velocity == 0.0 || self.max_acceleration == 0.0 {
+            return 0;
+        }
+        // For each segment, compute number of timesteps
+        let total_constraints: usize = self
+            .segment_times
+            .iter()
+            .map(|&segment_time| {
+                // Calculate number of steps, excluding the end point
+                let num_timesteps = (segment_time / self.dt).floor() as usize;
+                // 2 constraints (velocity and acceleration) per timestep
+                num_timesteps * 2
+            })
+            .sum();
+        total_constraints
+    }
+
+    /// Generate inequality constrain for a single dimension. This works by sampling the derivatives using the basis vector across time steps and
+    /// enforcing velocity and acceleration constraints for each of those basis vectors.
+    /// # Returns
+    /// A tuple containing the inequality matrix `c`, the lower bound vector `d`, and the upper bound vector `f`.
+    fn generate_inequality_constraints(&self) -> (DMatrix<f64>, DVector<f64>, DVector<f64>) {
+        let num_segments = self.segment_times.len();
+        let coeff_num = self.polyorder * num_segments;
+
+        let num_constraints = self.compute_num_constraints();
+
+        // Initialize the inequality matrix c, along with the vectors d and f, representing the inequality d <= c*x <= f, where x is the vector of coefficients.
+
+        let mut c: DMatrix<f64> = DMatrix::zeros(num_constraints, coeff_num);
+        let mut d = DVector::from_element(num_constraints, 0.0); // We fill this up to -max_velocity or -max_acceleration.
+        let mut f = DVector::from_element(num_constraints, 0.0); // We fill this up.
+
+        let mut row_index = 0;
+
+        // Iterate over each segment, then each time step in one segment, compute its basis vector for velocity and acceleration, and set the maximum.
+        for (i, &segment_time) in self.segment_times.iter().enumerate() {
+            // Col index for each segment
+            let col_offset = i * self.polyorder;
+
+            let mut t = self.dt; // To avoid placing equality and inequality constraints at in the beginning.
+                                 //Iterate over each time step in one segment
+            while t < segment_time {
+                let row_velocity = self.basis(t, 1);
+
+                c.row_mut(row_index)
+                    .columns_mut(col_offset, self.polyorder)
+                    .copy_from(&row_velocity.transpose());
+                f[row_index] = self.max_velocity as f64;
+                d[row_index] = -self.max_velocity as f64;
+                row_index += 1;
+
+                let row_acceleration = self.basis(t, 2);
+
+                c.row_mut(row_index)
+                    .columns_mut(col_offset, self.polyorder)
+                    .copy_from(&row_acceleration.transpose());
+                f[row_index] = self.max_acceleration as f64;
+                d[row_index] = -self.max_acceleration as f64;
+                row_index += 1;
+                t += self.dt; // Update time step to compute basis vector at the next step.
+            }
+        }
+        (c, d, f)
+    }
+
+    /// Generate the basis vector of the given derivative order at the given time.
+    /// # Arguments
+    /// * `time` - The time at which to evaluate the basis vector.
+    /// * `derivative` - The derivative order of the basis vector.
+    /// # Returns
+    /// * The basis vector of the given derivative order at the given time.
+    fn basis(&self, time: f32, derivative: usize) -> DVector<f64> {
+        assert!(derivative <= 4, "Derivative order must be less than 4");
+        let time_f64 = time as f64;
+        let t: Vec<f64> = (0..self.polyorder)
+            .map(|i| time_f64.powi(i as i32))
+            .collect();
+
+        let mut b = DVector::from_element(self.polyorder, 0.0);
+
+        for i in 0..self.polyorder {
+            let power = i as isize - derivative as isize;
+            let mut coeff = 1.0;
+
+            if power < 0 {
+                b[i] = 0.0;
+            } else {
+                for j in (i - derivative + 1..=i).rev() {
+                    coeff *= j as f64;
+                }
+                b[i] = coeff * t[power as usize];
+            }
+        }
+        b
+    }
+}
+
+/// Implement the `Planner` trait for `QPpolyTrajPlanner`
+impl Planner for QPpolyTrajPlanner {
+    fn plan(
+        &self,
+        _current_position: Vector3<f32>,
+        _current_velocity: Vector3<f32>,
+        time: f32,
+    ) -> (Vector3<f32>, Vector3<f32>, f32) {
+        let relative_time = time - self.start_time;
+        // Find the current segment
+        let mut segment_start_time = 0.0;
+        let mut current_segment = 0;
+        for (i, &segment_duration) in self.segment_times.iter().enumerate() {
+            if relative_time < segment_start_time + segment_duration {
+                current_segment = i;
+                break;
+            }
+            segment_start_time += segment_duration;
+        }
+        // Evaluate the polynomial for the current segment
+        let segment_time = relative_time - segment_start_time;
+        let (position, velocity, yaw, _yaw_rate) =
+            self.evaluate_polynomial(segment_time, current_segment);
+        (position, velocity, yaw)
+    }
+
+    fn is_finished(
+        &self,
+        current_position: Vector3<f32>,
+        time: f32,
+    ) -> Result<bool, SimulationError> {
+        let last_waypoint = self.waypoints.last().ok_or(SimulationError::OtherError(
+            "No waypoints available".to_string(),
+        ))?;
+
+        let total_time: f32 = self.segment_times.iter().sum();
+
+        let last_position = Vector3::new(last_waypoint[0], last_waypoint[1], last_waypoint[2]);
+
+        Ok(time >= self.start_time + total_time && (current_position - last_position).norm() < 0.1)
+    }
+}
 /// Represents a step in the planner schedule.
 /// # Example
 /// ```
@@ -1904,6 +2552,56 @@ pub fn create_planner(
             MinimumSnapWaypointPlanner::new(waypoints, yaws, segment_times, time)
                 .map(PlannerType::MinimumSnapWaypoint)
         }
+        "QPpolyTraj" => {
+            let mut waypoints = vec![vec![
+                quad.position.x,
+                quad.position.y,
+                quad.position.z,
+                quad.orientation.euler_angles().2,
+            ]];
+            waypoints.extend(
+                params["waypoints"]
+                    .as_sequence()
+                    .ok_or_else(|| SimulationError::OtherError("Invalid waypoints".to_string()))?
+                    .iter()
+                    .map(|w| {
+                        w.as_sequence()
+                            .and_then(|coords| {
+                                Some(vec![
+                                    coords[0].as_f64()? as f32,
+                                    coords[1].as_f64()? as f32,
+                                    coords[2].as_f64()? as f32,
+                                    coords[3].as_f64()? as f32,
+                                ])
+                            })
+                            .ok_or(SimulationError::OtherError("Invalid waypoint".to_string()))
+                    })
+                    .collect::<Result<Vec<Vec<f32>>, SimulationError>>()?,
+            );
+
+            let segment_times = params["segment_times"]
+                .as_sequence()
+                .ok_or_else(|| SimulationError::OtherError("Invalid segment_times".to_string()))?
+                .iter()
+                .map(|t| {
+                    t.as_f64().map(|v| v as f32).ok_or_else(|| {
+                        SimulationError::OtherError("Invalid segment time".to_string())
+                    })
+                })
+                .collect::<Result<Vec<f32>, SimulationError>>()?;
+            QPpolyTrajPlanner::new(
+                waypoints,
+                segment_times,
+                parse_usize(params, "polynomial_order")?,
+                parse_usize(params, "minimize_derivative")?,
+                parse_usize(params, "smooth_upto")?,
+                parse_f32(params, "max_velocity")?,
+                parse_f32(params, "max_acceleration")?,
+                time,
+                parse_f32(params, "dt")?,
+            )
+            .map(PlannerType::QPpolyTraj)
+        }
         "Landing" => Ok(PlannerType::Landing(LandingPlanner {
             start_position: quad.position,
             start_time: time,
@@ -1969,6 +2667,28 @@ pub fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, Simulation
     value[key]
         .as_f64()
         .map(|v| v as f32)
+        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {}", key)))
+}
+
+/// Helper function to parse unsigned integer from YAML
+/// # Arguments
+/// * `value` - YAML value
+/// * `key` - key to parse
+/// # Returns
+/// * `usize` - parsed value
+/// # Errors
+/// * `SimulationError` - if the value is not a valid unsigned integer
+/// # Example
+/// ```
+/// use peng_quad::{parse_usize, SimulationError};
+/// let value = serde_yaml::from_str("key: 1").unwrap();
+/// let result = parse_usize(&value, "key").unwrap();
+/// assert_eq!(result, 1);
+/// ```
+pub fn parse_usize(value: &serde_yaml::Value, key: &str) -> Result<usize, SimulationError> {
+    value[key]
+        .as_i64()
+        .and_then(|v| if v >= 0 { Some(v as usize) } else { None }) // Ensure non-negative
         .ok_or_else(|| SimulationError::OtherError(format!("Invalid {}", key)))
 }
 /// Represents an obstacle in the simulation
