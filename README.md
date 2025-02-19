@@ -51,7 +51,6 @@ Peng is a minimal quadrotor autonomy framework written in Rust that provides rea
 ### Installation from Crates.io
 
 ```bash
-# Install rerun-cli
 cargo install rerun-cli
 cargo install peng_quad
 peng_quad config/quad.yaml
@@ -60,7 +59,6 @@ peng_quad config/quad.yaml
 ### Installation from Source
 
 ```bash
-# Install rerun-cli
 cargo install rerun-cli
 git clone https://github.com/makeecat/Peng.git
 cd Peng
@@ -75,7 +73,7 @@ cargo run --release config/quad.yaml
 - Configure trajectory planner parameters such as waypoints, obstacles, and trajectory type.
 - Configure visualization parameters such as camera intrinsics and depth rendering.
 
-## 🔧 Troubleshooting
+## 🔧 Rerun Troubleshooting
 
 If you encountered any issue with the rerun:
 
@@ -108,10 +106,6 @@ Except where noted (below and/or in individual files), all code in this reposito
   at your option.
 
 This means you can select the license you prefer!
-
-## 🐦 Why call it Peng?
-
-Peng (鵬/鹏, péng), or Dapeng (大鵬), represents a mythical Chinese bird that transforms from a giant Kun (鯤/鲲) fish. This name reflects our framework's adaptability and transformative capabilities.
 
 ## 📝 Blog Posts
 
