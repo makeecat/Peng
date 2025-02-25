@@ -388,11 +388,43 @@ impl State {
             data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         }
     }
+
+    /// Creates a new State with provided data array
+    /// # Arguments
+    /// * `data` - An array of 13 f32 values representing the state
+    /// # Returns
+    /// * A new State instance with the provided data
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// let data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 0.0, 0.0, 0.0, 7.0, 8.0, 9.0];
+    /// let state = State::new_with_data(&data);
+    /// ```
     pub fn new_with_data(data: &[f32;13]) -> Self {
         let mut state = Self::new();
         state.set_data(data);
         state
     }
+
+    /// Creates a new State with provided vectors
+    /// # Arguments
+    /// * `position` - A 3D vector representing position
+    /// * `velocity` - A 3D vector representing velocity
+    /// * `orientation` - A quaternion representing orientation
+    /// * `angular_velocity` - A 3D vector representing angular velocity
+    /// # Returns
+    /// * A new State instance with values set from the provided vectors
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::{Vector3, UnitQuaternion, Quaternion};
+    /// 
+    /// let position = Vector3::new(1.0, 2.0, 3.0);
+    /// let velocity = Vector3::new(4.0, 5.0, 6.0);
+    /// let orientation = UnitQuaternion::from_quaternion(Quaternion::new(1.0, 0.0, 0.0, 0.0));
+    /// let angular_velocity = Vector3::new(7.0, 8.0, 9.0);
+    /// let state = State::new_with_vectors(&position, &velocity, &orientation, &angular_velocity);
+    /// ```
     pub fn new_with_vectors(
         position: &Vector3<f32>,
         velocity: &Vector3<f32>,
@@ -406,20 +438,91 @@ impl State {
             angular_velocity);
         state
     }
+
+    /// Returns the position component of the state
+    /// # Returns
+    /// * A Vector3 representing the position
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let position = Vector3::new(1.0, 2.0, 3.0);
+    /// state.set_position(&position);
+    /// ```
     pub fn get_position(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.data[0..3])
     }
+
+    /// Returns the velocity component of the state
+    /// # Returns
+    /// * A Vector3 representing the velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let velocity = Vector3::new(4.0, 5.0, 6.0);
+    /// state.set_velocity(&velocity);
+    /// ```
     pub fn get_velocity(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.data[3..6])
     }
+
+    /// Returns the orientation component of the state
+    /// # Returns
+    /// * A UnitQuaternion representing the orientation
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::{UnitQuaternion, Quaternion};
+    /// 
+    /// let mut state = State::new();
+    /// let orientation = UnitQuaternion::from_quaternion(Quaternion::new(0.7071, 0.0, 0.7071, 0.0));
+    /// state.set_orientation(&orientation);
+    /// ```
     pub fn get_orientation(&self) -> UnitQuaternion<f32> {
         UnitQuaternion::from_quaternion(Quaternion::new(
             self.data[9], self.data[6], self.data[7], self.data[8],
         ))
     }
+
+    /// Returns the angular velocity component of the state
+    /// # Returns
+    /// * A Vector3 representing the angular velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let angular_velocity = Vector3::new(7.0, 8.0, 9.0);
+    /// state.set_angular_velocity(&angular_velocity);
+    /// ```
     pub fn get_angular_velocity(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.data[10..13])
     }
+
+    /// Returns all components of the state as vectors
+    /// # Returns
+    /// * A tuple containing position, velocity, orientation, and angular velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::{Vector3, UnitQuaternion, Quaternion};
+    /// 
+    /// let position = Vector3::new(1.0, 2.0, 3.0);
+    /// let velocity = Vector3::new(4.0, 5.0, 6.0);
+    /// let orientation = UnitQuaternion::from_quaternion(Quaternion::new(1.0, 0.0, 0.0, 0.0));
+    /// let angular_velocity = Vector3::new(7.0, 8.0, 9.0);
+    /// 
+    /// let mut state = State::new();
+    /// state.set_with_vectors(&position, &velocity, &orientation, &angular_velocity);
+    /// 
+    /// let (pos, vel, orient, ang_vel) = state.get_state_vectors();
+    /// ```
     pub fn get_state_vectors(&self) -> (Vector3<f32>, Vector3<f32>, UnitQuaternion<f32>, Vector3<f32>) {
         (
             self.get_position(),
@@ -428,25 +531,121 @@ impl State {
             self.get_angular_velocity(),
         )
     }
+
+    /// Returns the raw data array of the state
+    /// # Returns
+    /// * An array of 13 f32 values representing the complete state
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// 
+    /// let data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 0.0, 0.0, 0.0, 7.0, 8.0, 9.0];
+    /// let state = State::new_with_data(&data);
+    /// ```
     pub fn get_state_data(&self) -> [f32; 13] {
             self.data.clone()
     }
+
+    /// Sets the position component of the state
+    /// # Arguments
+    /// * `position` - A Vector3 representing the new position
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let position = Vector3::new(1.0, 2.0, 3.0);
+    /// state.set_position(&position);
+    /// ```
     pub fn set_position(&mut self, position: &Vector3<f32>) {
         self.data[0..3].copy_from_slice(position.as_slice());
     }
+
+    /// Sets the velocity component of the state
+    /// # Arguments
+    /// * `velocity` - A Vector3 representing the new velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let velocity = Vector3::new(4.0, 5.0, 6.0);
+    /// state.set_velocity(&velocity);
+    /// 
+    /// assert_eq!(state.get_velocity(), velocity);
+    /// ```
     pub fn set_velocity(&mut self, velocity: &Vector3<f32>) {
         self.data[3..6].copy_from_slice(velocity.as_slice());
-
     }
+
+    /// Sets the orientation component of the state
+    /// # Arguments
+    /// * `orientation` - A UnitQuaternion representing the new orientation
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::{UnitQuaternion, Quaternion};
+    /// 
+    /// let mut state = State::new();
+    /// let orientation = UnitQuaternion::from_quaternion(Quaternion::new(0.0, 1.0, 0.0, 0.0));
+    /// state.set_orientation(&orientation);
+    /// ```
     pub fn set_orientation(&mut self, orientation: &UnitQuaternion<f32>) {
         self.data[6..10].copy_from_slice(orientation.coords.as_slice());
     }
+
+    /// Sets the angular velocity component of the state
+    /// # Arguments
+    /// * `angular_velocity` - A Vector3 representing the new angular velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::Vector3;
+    /// 
+    /// let mut state = State::new();
+    /// let angular_velocity = Vector3::new(7.0, 8.0, 9.0);
+    /// state.set_angular_velocity(&angular_velocity);
+    /// ```
     pub fn set_angular_velocity(&mut self, angular_velocity: &Vector3<f32>) {
         self.data[10..13].copy_from_slice(angular_velocity.as_slice());
     }
+
+    /// Sets all raw data values at once
+    /// # Arguments
+    /// * `data` - An array of 13 f32 values representing the complete state
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// 
+    /// let mut state = State::new();
+    /// let data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 1.0, 0.0, 0.0, 0.0, 7.0, 8.0, 9.0];
+    /// state.set_data(&data);
+    /// ```
     pub fn set_data(&mut self, data: &[f32;13]) {
         self.data = *data
     }
+
+    /// Sets all components of the state using vectors
+    /// # Arguments
+    /// * `position` - A Vector3 representing the new position
+    /// * `velocity` - A Vector3 representing the new velocity
+    /// * `orientation` - A UnitQuaternion representing the new orientation
+    /// * `angular_velocity` - A Vector3 representing the new angular velocity
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// use nalgebra::{Vector3, UnitQuaternion, Quaternion};
+    /// 
+    /// let mut state = State::new();
+    /// let position = Vector3::new(1.0, 2.0, 3.0);
+    /// let velocity = Vector3::new(4.0, 5.0, 6.0);
+    /// let orientation = UnitQuaternion::from_quaternion(Quaternion::new(1.0, 0.0, 0.0, 0.0));
+    /// let angular_velocity = Vector3::new(7.0, 8.0, 9.0);
+    /// 
+    /// state.set_with_vectors(&position, &velocity, &orientation, &angular_velocity);
+    /// ```
     pub fn set_with_vectors(&mut self,
         position: &Vector3<f32>,
         velocity: &Vector3<f32>,
@@ -457,7 +656,6 @@ impl State {
         self.set_orientation(orientation);
         self.set_angular_velocity(angular_velocity);
     }
-   
 }
 /// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
 /// # Example
