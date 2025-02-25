@@ -102,6 +102,8 @@ pub struct PIDGains {
 #[derive(serde::Deserialize, Default)]
 /// Configuration for the IMU
 pub struct ImuConfig {
+    /// Feeds imu state estimation to control
+    pub add_noise_to_control: bool,
     /// Accelerometer noise standard deviation
     pub accel_noise_std: f32,
     /// Gyroscope noise standard deviation

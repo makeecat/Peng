@@ -1,4 +1,4 @@
-use nalgebra::Vector3;
+use nalgebra::{Vector3, UnitQuaternion};
 use peng_quad::*;
 /// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
@@ -102,6 +102,14 @@ fn main() -> Result<(), SimulationError> {
     }
     log::info!("Starting simulation...");
     let mut i = 0;
+    let mut current_state = State::new_with_vectors(
+        &quad.position, 
+        &quad.velocity,
+        &quad.orientation,
+        &quad.angular_velocity,
+    );
+    let mut previous_state = current_state.clone();
+
     loop {
         let time = quad.time_step * i as f32;
         maze.update_obstacles(quad.time_step);
@@ -115,9 +123,9 @@ fn main() -> Result<(), SimulationError> {
             &planner_config,
         )?;
         let (desired_position, desired_velocity, desired_yaw) = planner_manager.update(
-            quad.position,
-            quad.orientation,
-            quad.velocity,
+            current_state.get_position(),
+            current_state.get_orientation(),
+            current_state.get_velocity(),
             time,
             &maze.obstacles,
         )?;
@@ -125,14 +133,14 @@ fn main() -> Result<(), SimulationError> {
             &desired_position,
             &desired_velocity,
             desired_yaw,
-            &quad.position,
-            &quad.velocity,
+            &current_state.get_position(),
+            &current_state.get_velocity(),
             quad.time_step,
         );
         let torque = controller.compute_attitude_control(
             &calculated_desired_orientation,
-            &quad.orientation,
-            &quad.angular_velocity,
+            &current_state.get_orientation(),
+            &current_state.get_angular_velocity(),
             quad.time_step,
         );
         if i % (config.simulation.simulation_frequency / config.simulation.control_frequency) == 0 {
@@ -151,6 +159,22 @@ fn main() -> Result<(), SimulationError> {
         imu.update(quad.time_step)?;
         let (true_accel, true_gyro) = quad.read_imu()?;
         let (measured_accel, measured_gyro) = imu.read(true_accel, true_gyro)?;
+        if config.imu.add_noise_to_control {
+            current_state.set_with_vectors(
+                &quad.position,
+                &(previous_state.get_velocity() + measured_accel*quad.time_step),
+                &(previous_state.get_orientation() * UnitQuaternion::from_scaled_axis(measured_gyro * quad.time_step)),
+                &measured_gyro,
+            );
+        }
+        else {
+            current_state.set_with_vectors(
+                &quad.position,
+                &quad.velocity,
+                &quad.orientation,
+                &quad.angular_velocity,
+            );
+        }
         if i % (config.simulation.simulation_frequency / config.simulation.log_frequency) == 0 {
             if config.render_depth {
                 camera.render_depth(
@@ -186,6 +210,7 @@ fn main() -> Result<(), SimulationError> {
                 log_maze_obstacles(rec, &maze)?;
             }
         }
+        previous_state = current_state.clone();
         i += 1;
         if time >= config.simulation.duration {
             log::info!("Complete Simulation");

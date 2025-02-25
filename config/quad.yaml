@@ -34,9 +34,10 @@ pid_controller:
   att_max_int: [0.5, 0.5, 0.5] # Maximum integral error for attitude control [roll, pitch, yaw]
 
 imu:
+  add_noise_to_control: true # Feeds imu state estimation to control
   accel_noise_std: 0.02 # Standard deviation of accelerometer noise (m/s^2)
   gyro_noise_std: 0.01 # Standard deviation of gyroscope noise (rad/s)
-  accel_bias_std: 0.0001 # Standard deviation of accelerometer bias instability (m/s^2)
+q  accel_bias_std: 0.0001 # Standard deviation of accelerometer bias instability (m/s^2)
   gyro_bias_std: 0.0001 # Standard deviation of gyroscope bias instability (rad/s)
 
 maze:

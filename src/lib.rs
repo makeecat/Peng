@@ -369,6 +369,96 @@ impl Quadrotor {
         Ok((self.acceleration, self.angular_velocity))
     }
 }
+#[derive(Clone)]
+pub struct State {
+    data: [f32; 13]
+}
+impl State {
+    /// Creates a new State with default values
+    /// # Returns
+    /// * A new State instance
+    /// # Example
+    /// ```
+    /// use peng_quad::State;
+    /// let state = State::new();
+    /// ```
+    
+    pub fn new() -> Self {
+        Self {
+            data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        }
+    }
+    pub fn new_with_data(data: &[f32;13]) -> Self {
+        let mut state = Self::new();
+        state.set_data(data);
+        state
+    }
+    pub fn new_with_vectors(
+        position: &Vector3<f32>,
+        velocity: &Vector3<f32>,
+        orientation: &UnitQuaternion<f32>,
+        angular_velocity: &Vector3<f32>) -> Self {
+        let mut state = Self::new();
+        state.set_with_vectors(
+            position,
+            velocity,
+            orientation,
+            angular_velocity);
+        state
+    }
+    pub fn get_position(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.data[0..3])
+    }
+    pub fn get_velocity(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.data[3..6])
+    }
+    pub fn get_orientation(&self) -> UnitQuaternion<f32> {
+        UnitQuaternion::from_quaternion(Quaternion::new(
+            self.data[9], self.data[6], self.data[7], self.data[8],
+        ))
+    }
+    pub fn get_angular_velocity(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.data[10..13])
+    }
+    pub fn get_state_vectors(&self) -> (Vector3<f32>, Vector3<f32>, UnitQuaternion<f32>, Vector3<f32>) {
+        (
+            self.get_position(),
+            self.get_velocity(),
+            self.get_orientation(),
+            self.get_angular_velocity(),
+        )
+    }
+    pub fn get_state_data(&self) -> [f32; 13] {
+            self.data.clone()
+    }
+    pub fn set_position(&mut self, position: &Vector3<f32>) {
+        self.data[0..3].copy_from_slice(position.as_slice());
+    }
+    pub fn set_velocity(&mut self, velocity: &Vector3<f32>) {
+        self.data[3..6].copy_from_slice(velocity.as_slice());
+
+    }
+    pub fn set_orientation(&mut self, orientation: &UnitQuaternion<f32>) {
+        self.data[6..10].copy_from_slice(orientation.coords.as_slice());
+    }
+    pub fn set_angular_velocity(&mut self, angular_velocity: &Vector3<f32>) {
+        self.data[10..13].copy_from_slice(angular_velocity.as_slice());
+    }
+    pub fn set_data(&mut self, data: &[f32;13]) {
+        self.data = *data
+    }
+    pub fn set_with_vectors(&mut self,
+        position: &Vector3<f32>,
+        velocity: &Vector3<f32>,
+        orientation: &UnitQuaternion<f32>,
+        angular_velocity: &Vector3<f32>) {
+        self.set_position(position);
+        self.set_velocity(velocity);
+        self.set_orientation(orientation);
+        self.set_angular_velocity(angular_velocity);
+    }
+   
+}
 /// Represents an Inertial Measurement Unit (IMU) with bias and noise characteristics
 /// # Example
 /// ```
