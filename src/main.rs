@@ -1,4 +1,4 @@
-use nalgebra::{Vector3, UnitQuaternion};
+use nalgebra::{UnitQuaternion, Vector3};
 use peng_quad::*;
 /// Main function for the simulation
 fn main() -> Result<(), SimulationError> {
@@ -103,7 +103,7 @@ fn main() -> Result<(), SimulationError> {
     log::info!("Starting simulation...");
     let mut i = 0;
     let mut current_state = State::new_with_vectors(
-        &quad.position, 
+        &quad.position,
         &quad.velocity,
         &quad.orientation,
         &quad.angular_velocity,
@@ -162,12 +162,12 @@ fn main() -> Result<(), SimulationError> {
         if config.imu.add_noise_to_control {
             current_state.set_with_vectors(
                 &quad.position,
-                &(previous_state.get_velocity() + measured_accel*quad.time_step),
-                &(previous_state.get_orientation() * UnitQuaternion::from_scaled_axis(measured_gyro * quad.time_step)),
+                &(previous_state.get_velocity() + measured_accel * quad.time_step),
+                &(previous_state.get_orientation()
+                    * UnitQuaternion::from_scaled_axis(measured_gyro * quad.time_step)),
                 &measured_gyro,
             );
-        }
-        else {
+        } else {
             current_state.set_with_vectors(
                 &quad.position,
                 &quad.velocity,
