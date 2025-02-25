@@ -166,8 +166,7 @@ fn main() -> Result<(), SimulationError> {
                 &(previous_state.get_orientation() * UnitQuaternion::from_scaled_axis(measured_gyro * quad.time_step)),
                 &measured_gyro,
             );
-        }
-        else {
+        } else {
             current_state.set_with_vectors(
                 &quad.position,
                 &quad.velocity,
