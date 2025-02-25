@@ -373,6 +373,11 @@ impl Quadrotor {
 pub struct State {
     data: [f32; 13],
 }
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl State {
     /// Creates a new State with default values
     /// # Returns
@@ -551,7 +556,7 @@ impl State {
     /// let state = State::new_with_data(&data);
     /// ```
     pub fn get_state_data(&self) -> [f32; 13] {
-        self.data.clone()
+        self.data
     }
 
     /// Sets the position component of the state
