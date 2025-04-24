@@ -27,15 +27,15 @@ opt-level = 3 # Enable a large amount of optimization in the dev profile for dep
 codegen-units = 1 # Compile the entire crate as one unit.
 lto = "thin"      # Do a second optimization pass over the entire program, including dependencies.
 [dependencies]
-rand = "0.9.0"
+rand = "0.9.1"
 nalgebra = "0.33.2"
-rand_distr = "0.5.0"
+rand_distr = "0.5.1"
 rand_chacha = "0.9.0"
-rerun = "0.22.0"
-thiserror = "2.0.11"
-serde = { version = "1.0.217", features = ["derive"] }
+rerun = "0.23.0"
+thiserror = "2.0.12"
+serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
-env_logger = "0.11.6"
-log = "0.4.25"
+env_logger = "0.11.8"
+log = "0.4.27"
 rayon = "1.10.0"
-osqp = "1.0.0"
+osqp = "1.0.1"

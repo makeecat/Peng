@@ -96,7 +96,7 @@ fn main() -> Result<(), SimulationError> {
     log::info!("Use rerun.io: {}", config.use_rerun);
     if let Some(rec) = &rec {
         rec.log_file_from_path(config.rerun_blueprint, None, false)?;
-        rec.set_time_seconds("timestamp", 0);
+        rec.set_duration_secs("timestamp", 0);
         log_maze_tube(rec, &maze)?;
         log_maze_obstacles(rec, &maze)?;
     }
@@ -161,7 +161,7 @@ fn main() -> Result<(), SimulationError> {
                 )?;
             }
             if let Some(rec) = &rec {
-                rec.set_time_seconds("timestamp", time);
+                rec.set_duration_secs("timestamp", time);
                 if trajectory.add_point(quad.position) {
                     log_trajectory(rec, &trajectory)?;
                 }
@@ -193,5 +193,8 @@ fn main() -> Result<(), SimulationError> {
         }
     }
     log::logger().flush();
+    if let Some(rec) = &rec {
+        rec.disconnect();
+    }
     Ok(())
 }
