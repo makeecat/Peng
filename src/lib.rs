@@ -3116,7 +3116,10 @@ pub fn log_data(
         ("desired_velocity", desired_velocity),
     ] {
         for (i, a) in ["x", "y", "z"].iter().enumerate() {
-            rec.log(format!("{}/{}", pre, a), &rerun::Scalars::single(vec[i] as f64))?;
+            rec.log(
+                format!("{}/{}", pre, a),
+                &rerun::Scalars::single(vec[i] as f64),
+            )?;
         }
     }
     Ok(())
