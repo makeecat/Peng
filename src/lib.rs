@@ -1307,7 +1307,7 @@ impl PlannerManager {
         obstacles: &[Obstacle],
     ) -> Result<(Vector3<f32>, Vector3<f32>, f32), SimulationError> {
         if self.current_planner.is_finished(current_position, time)? {
-            log::info!("Time: {:.2} s,\tSwitch Hover", time);
+            log::info!("Time: {time:.2} s,\tSwitch Hover");
             self.current_planner = PlannerType::Hover(HoverPlanner {
                 target_position: current_position,
                 target_yaw: current_orientation.euler_angles().2,
@@ -1799,8 +1799,7 @@ impl QPpolyTrajPlanner {
         }
         if smooth_upto > polyorder {
             return Err(SimulationError::OtherError(format!(
-                "smooth_upto ({}) cannot be greater than polynomial order({})",
-                smooth_upto, polyorder
+                "smooth_upto ({smooth_upto}) cannot be greater than polynomial order ({polyorder})"
             )));
         }
         let mut planner = Self {
@@ -2616,7 +2615,7 @@ pub fn parse_vector3(
                 None
             }
         })
-        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {} vector", key)))
+        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {key} vector")))
 }
 /// Helper function to parse f32 from YAML
 /// # Arguments
@@ -2637,7 +2636,7 @@ pub fn parse_f32(value: &serde_yaml::Value, key: &str) -> Result<f32, Simulation
     value[key]
         .as_f64()
         .map(|v| v as f32)
-        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {}", key)))
+        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {key}")))
 }
 
 /// Helper function to parse unsigned integer from YAML
@@ -2659,7 +2658,7 @@ pub fn parse_usize(value: &serde_yaml::Value, key: &str) -> Result<usize, Simula
     value[key]
         .as_i64()
         .and_then(|v| if v >= 0 { Some(v as usize) } else { None }) // Ensure non-negative
-        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {}", key)))
+        .ok_or_else(|| SimulationError::OtherError(format!("Invalid {key}")))
 }
 /// Represents an obstacle in the simulation
 /// # Example
@@ -3116,10 +3115,7 @@ pub fn log_data(
         ("desired_velocity", desired_velocity),
     ] {
         for (i, a) in ["x", "y", "z"].iter().enumerate() {
-            rec.log(
-                format!("{}/{}", pre, a),
-                &rerun::Scalars::single(vec[i] as f64),
-            )?;
+            rec.log(format!("{pre}/{a}"), &rerun::Scalars::single(vec[i] as f64))?;
         }
     }
     Ok(())
@@ -3350,7 +3346,7 @@ pub fn log_depth_image(
         }
     }
     let rerun_image = rerun::Image::from_color_model_and_tensor(rerun::ColorModel::RGB, image)
-        .map_err(|e| SimulationError::OtherError(format!("Failed to create rerun image: {}", e)))?;
+        .map_err(|e| SimulationError::OtherError(format!("Failed to create rerun image: {e}")))?;
     rec.log("world/quad/cam/depth", &rerun_image)?;
     Ok(())
 }
