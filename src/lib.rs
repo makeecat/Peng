@@ -1177,7 +1177,7 @@ pub struct LandingPlanner {
     /// Starting yaw angle
     pub start_yaw: f32,
 }
-/// Implementation of the Planner trait for LandingPlanner
+/// Implementation of the Planner trait for 'LandingPlanner'
 impl Planner for LandingPlanner {
     fn plan(
         &self,
@@ -3067,7 +3067,7 @@ pub fn ray_cast(
 /// ```no_run
 /// use peng_quad::{Quadrotor, log_data};
 /// use nalgebra::Vector3;
-/// let rec = rerun::RecordingStreamBuilder::new("peng").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let (time_step, mass, gravity, drag_coefficient) = (0.01, 1.3, 9.81, 0.01);
 /// let inertia_matrix = [0.0347563, 0.0, 0.0, 0.0, 0.0458929, 0.0, 0.0, 0.0, 0.0977];
 /// let quad = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
@@ -3116,7 +3116,7 @@ pub fn log_data(
         ("desired_velocity", desired_velocity),
     ] {
         for (i, a) in ["x", "y", "z"].iter().enumerate() {
-            rec.log(format!("{}/{}", pre, a), &rerun::Scalar::new(vec[i] as f64))?;
+            rec.log(format!("{}/{}", pre, a), &rerun::Scalars::single(vec[i] as f64))?;
         }
     }
     Ok(())
@@ -3131,7 +3131,7 @@ pub fn log_data(
 /// ```no_run
 /// use peng_quad::{Maze, log_maze_tube};
 /// use rerun::RecordingStreamBuilder;
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
 /// log_maze_tube(&rec, &maze).unwrap();
 /// ```
@@ -3163,7 +3163,7 @@ pub fn log_maze_tube(rec: &rerun::RecordingStream, maze: &Maze) -> Result<(), Si
 /// # Example
 /// ```no_run
 /// use peng_quad::{Maze, log_maze_obstacles};
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let mut maze = Maze::new([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0], 5, [0.1, 0.1, 0.1], [0.1, 0.5]);
 /// log_maze_obstacles(&rec, &maze).unwrap();
 /// ```
@@ -3255,7 +3255,7 @@ impl Trajectory {
 /// ```no_run
 /// use peng_quad::{Trajectory, log_trajectory};
 /// use nalgebra::Vector3;
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let mut trajectory = Trajectory::new(nalgebra::Vector3::new(0.0, 0.0, 0.0));
 /// trajectory.add_point(nalgebra::Vector3::new(1.0, 0.0, 0.0));
 /// log_trajectory(&rec, &trajectory).unwrap();
@@ -3288,7 +3288,7 @@ pub fn log_trajectory(
 /// # Example
 /// ```no_run
 /// use peng_quad::{log_depth_image, Camera};
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let camera = Camera::new((640, 480), 0.1, 100.0, 60.0);
 /// let use_multi_threading = false;
 /// log_depth_image(&rec, &camera, use_multi_threading).unwrap();
@@ -3358,13 +3358,13 @@ pub fn log_depth_image(
 /// * `cam_position` - The position vector of the camera (aligns with the quad)
 /// * `cam_orientation` - The orientation quaternion of quad
 /// * `cam_transform` - The transform matrix between quad and camera alignment
-/// # Errors
+/// # Errors    
 /// * If the data cannot be logged to the recording stream
 /// # Example
 /// ```no_run
 /// use peng_quad::{log_pinhole_depth, Camera};
 /// use nalgebra::{Vector3, UnitQuaternion};
-/// let rec = rerun::RecordingStreamBuilder::new("log.rerun").connect().unwrap();
+/// let rec = rerun::RecordingStreamBuilder::new("peng").spawn().unwrap();
 /// let depth_image = vec![ 0.0f32 ; 640 * 480];
 /// let cam_position = Vector3::new(0.0,0.0,0.0);
 /// let cam_orientation = UnitQuaternion::identity();
