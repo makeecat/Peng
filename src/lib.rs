@@ -1902,9 +1902,9 @@ impl QPpolyTrajPlanner {
     fn prepare_qp_problem(
         &self,
     ) -> (
-        CscMatrix,
+        CscMatrix<'_>,
         DVector<f64>,
-        CscMatrix,
+        CscMatrix<'_>,
         DVector<f64>,
         DVector<f64>,
     ) {
@@ -2006,7 +2006,7 @@ impl QPpolyTrajPlanner {
     /// * `a` - The dense matrix to be converted.
     /// # Returns
     /// * The sparse matrix in CSC format.
-    fn convert_dense_to_sparse(&self, a: &DMatrix<f64>) -> CscMatrix {
+    fn convert_dense_to_sparse(&self, a: &DMatrix<f64>) -> CscMatrix<'_> {
         let (rows, cols) = a.shape();
 
         let column_major_iter: Vec<f64> = a
