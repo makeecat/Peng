@@ -3100,9 +3100,9 @@ pub fn log_data(
                 quad.orientation.k,
                 quad.orientation.w,
             ]),
-        )
-        .with_axis_length(0.7),
+        ),
     )?;
+    rec.log("world/quad/base_link", &rerun::TransformAxes3D::new(0.7))?;
     let (quad_roll, quad_pitch, quad_yaw) = quad.orientation.euler_angles();
     let quad_euler_angles: Vector3<f32> = Vector3::new(quad_roll, quad_pitch, quad_yaw);
     for (pre, vec) in [
