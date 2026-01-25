@@ -24,3 +24,5 @@ Cargo.lock
 .idea/workspace.xml
 .idea/vcs.xml
 justfile
+# Git worktrees
+.worktrees/
