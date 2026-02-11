@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Updates the planner based on the current simulation step and configuration"><title>update_planner in peng_quad - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="peng_quad" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">update_planner</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../peng_quad/index.html">peng_<wbr>quad</a><span class="version">0.5.6</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">update_<wbr>planner</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#arguments" title="Arguments">Arguments</a></li><li><a href="#errors" title="Errors">Errors</a></li><li><a href="#example" title="Example">Example</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate peng_<wbr>quad</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">peng_quad</a></div><h1>Function <span class="fn">update_<wbr>planner</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/peng_quad/lib.rs.html#2372-2389">Source</a> </span></div><pre class="rust item-decl"><code>pub fn update_planner(
+    planner_manager: &amp;mut <a class="struct" href="struct.PlannerManager.html" title="struct peng_quad::PlannerManager">PlannerManager</a>,
+    step: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.usize.html">usize</a>,
+    time: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>,
+    simulation_frequency: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.usize.html">usize</a>,
+    quad: &amp;<a class="struct" href="struct.Quadrotor.html" title="struct peng_quad::Quadrotor">Quadrotor</a>,
+    obstacles: &amp;[<a class="struct" href="struct.Obstacle.html" title="struct peng_quad::Obstacle">Obstacle</a>],
+    planner_config: &amp;[<a class="struct" href="struct.PlannerStepConfig.html" title="struct peng_quad::PlannerStepConfig">PlannerStepConfig</a>],
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.unit.html">()</a>, <a class="enum" href="enum.SimulationError.html" title="enum peng_quad::SimulationError">SimulationError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Updates the planner based on the current simulation step and configuration</p>
+<h2 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h2>
+<ul>
+<li><code>planner_manager</code> - The PlannerManager instance to update</li>
+<li><code>step</code> - The current simulation step in ms unit</li>
+<li><code>time</code> - The current simulation time</li>
+<li>`simulation_frequency’ - The simulation frequency in Hz</li>
+<li><code>quad</code> - The Quadrotor instance</li>
+<li><code>obstacles</code> - The current obstacles in the simulation</li>
+<li><code>planner_config</code> - The planner configuration</li>
+</ul>
+<h2 id="errors"><a class="doc-anchor" href="#errors">§</a>Errors</h2>
+<ul>
+<li>If the planner could not be created</li>
+</ul>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>peng_quad::{PlannerManager, Quadrotor, Obstacle, PlannerStepConfig, update_planner};
+<span class="kw">use </span>nalgebra::Vector3;
+<span class="kw">let </span>simulation_frequency = <span class="number">1000</span>;
+<span class="kw">let </span>initial_position = Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>);
+<span class="kw">let </span>initial_yaw = <span class="number">0.0</span>;
+<span class="kw">let </span><span class="kw-2">mut </span>planner_manager = PlannerManager::new(initial_position, initial_yaw);
+<span class="kw">let </span>step = <span class="number">0</span>;
+<span class="kw">let </span>time = <span class="number">0.0</span>;
+<span class="kw">let </span>(time_step, mass, gravity, drag_coefficient) = (<span class="number">0.01</span>, <span class="number">1.3</span>, <span class="number">9.81</span>, <span class="number">0.01</span>);
+<span class="kw">let </span>inertia_matrix = [<span class="number">0.0347563</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0458929</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0977</span>];
+<span class="kw">let </span>quadrotor = Quadrotor::new(time_step, mass, gravity, drag_coefficient, inertia_matrix).unwrap();
+<span class="kw">let </span>obstacles = <span class="macro">vec!</span>[Obstacle::new(Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), <span class="number">1.0</span>)];
+<span class="kw">let </span>planner_config = <span class="macro">vec!</span>[PlannerStepConfig {
+    step: <span class="number">0</span>,
+    planner_type: <span class="string">"MinimumJerkLine"</span>.to_string(),
+    params:
+       serde_yaml::from_str(<span class="string">r#"
+       end_position: [0.0, 0.0, 1.0]
+       end_yaw: 0.0
+       duration: 2.0
+       "#</span>).unwrap(),
+}];
+update_planner(<span class="kw-2">&amp;mut </span>planner_manager, step, time, simulation_frequency, <span class="kw-2">&amp;</span>quadrotor, <span class="kw-2">&amp;</span>obstacles, <span class="kw-2">&amp;</span>planner_config).unwrap();</code></pre></div></div></details></section></div></main></body></html>

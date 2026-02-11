@@ -1,0 +1,113 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Trait defining the interface for trajectory planners"><title>Planner in peng_quad - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="peng_quad" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0 (254b59607 2026-01-19)" data-channel="1.93.0" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Planner</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../peng_quad/index.html">peng_<wbr>quad</a><span class="version">0.5.6</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Planner</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.is_finished" title="is_finished">is_finished</a></li><li><a href="#tymethod.plan" title="plan">plan</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate peng_<wbr>quad</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">peng_quad</a></div><h1>Trait <span class="trait">Planner</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/peng_quad/lib.rs.html#820-891">Source</a> </span></div><pre class="rust item-decl"><code>pub trait Planner {
+    // Required methods
+    fn <a href="#tymethod.plan" class="fn">plan</a>(
+        &amp;self,
+        current_position: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+        current_velocity: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+        time: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>,
+    ) -&gt; (<a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;, <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;, <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>);
+<span class="item-spacer"></span>    fn <a href="#tymethod.is_finished" class="fn">is_finished</a>(
+        &amp;self,
+        current_position: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+        time: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.bool.html">bool</a>, <a class="enum" href="enum.SimulationError.html" title="enum peng_quad::SimulationError">SimulationError</a>&gt;;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Trait defining the interface for trajectory planners</p>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>nalgebra::Vector3;
+<span class="kw">use </span>peng_quad::{Planner, SimulationError};
+<span class="kw">struct </span>TestPlanner;
+<span class="kw">impl </span>Planner <span class="kw">for </span>TestPlanner {
+   <span class="kw">fn </span>plan(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        current_velocity: Vector3&lt;f32&gt;,
+        time: f32,
+) -&gt; (Vector3&lt;f32&gt;, Vector3&lt;f32&gt;, f32) {
+        (Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), <span class="number">0.0</span>)
+    }
+    <span class="kw">fn </span>is_finished(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        time: f32,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SimulationError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+    }
+}</code></pre></div></div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.plan" class="method"><a class="src rightside" href="../src/peng_quad/lib.rs.html#851-856">Source</a><h4 class="code-header">fn <a href="#tymethod.plan" class="fn">plan</a>(
+    &amp;self,
+    current_position: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+    current_velocity: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+    time: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>,
+) -&gt; (<a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;, <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;, <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>)</h4></section></summary><div class="docblock"><p>Plans the trajectory based on the current state and time</p>
+<h5 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h5>
+<ul>
+<li><code>current_position</code> - The current position of the quadrotor</li>
+<li><code>current_velocity</code> - The current velocity of the quadrotor</li>
+<li><code>time</code> - The current simulation time</li>
+</ul>
+<h5 id="returns"><a class="doc-anchor" href="#returns">§</a>Returns</h5>
+<ul>
+<li>A tuple containing the desired position, velocity, and yaw angle</li>
+</ul>
+<h5 id="example-1"><a class="doc-anchor" href="#example-1">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>nalgebra::Vector3;
+<span class="kw">use </span>peng_quad::{Planner, SimulationError};
+<span class="kw">struct </span>TestPlanner;
+<span class="kw">impl </span>Planner <span class="kw">for </span>TestPlanner {
+    <span class="kw">fn </span>plan(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        current_velocity: Vector3&lt;f32&gt;,
+        time: f32,
+) -&gt; (Vector3&lt;f32&gt;, Vector3&lt;f32&gt;, f32) {
+        (Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), <span class="number">0.0</span>)
+    }
+    <span class="kw">fn </span>is_finished(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        time: f32,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SimulationError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+    }
+}</code></pre></div></div></details><details class="toggle method-toggle" open><summary><section id="tymethod.is_finished" class="method"><a class="src rightside" href="../src/peng_quad/lib.rs.html#886-890">Source</a><h4 class="code-header">fn <a href="#tymethod.is_finished" class="fn">is_finished</a>(
+    &amp;self,
+    current_position: <a class="type" href="https://docs.rs/nalgebra/0.25.0/nalgebra/base/alias/type.Vector3.html" title="type nalgebra::base::alias::Vector3">Vector3</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>&gt;,
+    time: <a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.f32.html">f32</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.93.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.93.0/std/primitive.bool.html">bool</a>, <a class="enum" href="enum.SimulationError.html" title="enum peng_quad::SimulationError">SimulationError</a>&gt;</h4></section></summary><div class="docblock"><p>Checks if the current trajectory is finished</p>
+<h5 id="arguments-1"><a class="doc-anchor" href="#arguments-1">§</a>Arguments</h5>
+<ul>
+<li><code>current_position</code> - The current position of the quadrotor</li>
+<li><code>time</code> - The current simulation time</li>
+</ul>
+<h5 id="returns-1"><a class="doc-anchor" href="#returns-1">§</a>Returns</h5>
+<ul>
+<li><code>true</code> if the trajectory is finished, <code>false</code> otherwise</li>
+</ul>
+<h5 id="example-2"><a class="doc-anchor" href="#example-2">§</a>Example</h5>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>nalgebra::Vector3;
+<span class="kw">use </span>peng_quad::{Planner, SimulationError};
+<span class="kw">struct </span>TestPlanner;
+<span class="kw">impl </span>Planner <span class="kw">for </span>TestPlanner {
+    <span class="kw">fn </span>plan(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        current_velocity: Vector3&lt;f32&gt;,
+        time: f32,
+) -&gt; (Vector3&lt;f32&gt;, Vector3&lt;f32&gt;, f32) {
+        (Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), Vector3::new(<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">0.0</span>), <span class="number">0.0</span>)
+    }
+    <span class="kw">fn </span>is_finished(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        current_position: Vector3&lt;f32&gt;,
+        time: f32,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SimulationError&gt; {
+        <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+    }
+}</code></pre></div></div></details></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-Planner-for-CirclePlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#1113-1157">Source</a><a href="#impl-Planner-for-CirclePlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.CirclePlanner.html" title="struct peng_quad::CirclePlanner">CirclePlanner</a></h3><div class="docblock"><p>Implementation of the Planner trait for CirclePlanner</p>
+</div></section><section id="impl-Planner-for-HoverPlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#909-926">Source</a><a href="#impl-Planner-for-HoverPlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.HoverPlanner.html" title="struct peng_quad::HoverPlanner">HoverPlanner</a></h3><div class="docblock"><p>Implementation of the <code>Planner</code> trait for the <code>HoverPlanner</code></p>
+</div></section><section id="impl-Planner-for-LandingPlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#1181-1202">Source</a><a href="#impl-Planner-for-LandingPlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.LandingPlanner.html" title="struct peng_quad::LandingPlanner">LandingPlanner</a></h3><div class="docblock"><p>Implementation of the Planner trait for ‘LandingPlanner’</p>
+</div></section><section id="impl-Planner-for-LissajousPlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#1025-1074">Source</a><a href="#impl-Planner-for-LissajousPlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.LissajousPlanner.html" title="struct peng_quad::LissajousPlanner">LissajousPlanner</a></h3><div class="docblock"><p>Implementation of the planner trait for Lissajous curve trajectories</p>
+</div></section><section id="impl-Planner-for-MinimumJerkLinePlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#956-983">Source</a><a href="#impl-Planner-for-MinimumJerkLinePlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.MinimumJerkLinePlanner.html" title="struct peng_quad::MinimumJerkLinePlanner">MinimumJerkLinePlanner</a></h3><div class="docblock"><p>Implementation of the planner trait for minimum jerk line planner</p>
+</div></section><section id="impl-Planner-for-MinimumSnapWaypointPlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#1671-1710">Source</a><a href="#impl-Planner-for-MinimumSnapWaypointPlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.MinimumSnapWaypointPlanner.html" title="struct peng_quad::MinimumSnapWaypointPlanner">MinimumSnapWaypointPlanner</a></h3><div class="docblock"><p>Implement the <code>Planner</code> trait for <code>MinimumSnapWaypointPlanner</code></p>
+</div></section><section id="impl-Planner-for-ObstacleAvoidancePlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#1379-1421">Source</a><a href="#impl-Planner-for-ObstacleAvoidancePlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.ObstacleAvoidancePlanner.html" title="struct peng_quad::ObstacleAvoidancePlanner">ObstacleAvoidancePlanner</a></h3><div class="docblock"><p>Implementation of the Planner trait for ObstacleAvoidancePlanner</p>
+</div></section><section id="impl-Planner-for-QPpolyTrajPlanner" class="impl"><a class="src rightside" href="../src/peng_quad/lib.rs.html#2276-2316">Source</a><a href="#impl-Planner-for-QPpolyTrajPlanner" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.Planner.html" title="trait peng_quad::Planner">Planner</a> for <a class="struct" href="struct.QPpolyTrajPlanner.html" title="struct peng_quad::QPpolyTrajPlanner">QPpolyTrajPlanner</a></h3><div class="docblock"><p>Implement the <code>Planner</code> trait for <code>QPpolyTrajPlanner</code></p>
+</div></section></div><script src="../trait.impl/peng_quad/trait.Planner.js" async></script></section></div></main></body></html>
